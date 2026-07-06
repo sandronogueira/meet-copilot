@@ -82,7 +82,7 @@ export class CopilotPipeline {
       system: [{ type: 'text', text: generatorSystem(ctx), cache_control: { type: 'ephemeral' } }],
       userText: fence(window) + antiRepeat,
       maxTokens: 700,
-      temperature: 0.5,
+      // sonnet-5 não aceita temperature — usa o default do modelo
     })
     if (!genRes.ok) {
       console.error('[pipeline] gerador falhou:', genRes.error)

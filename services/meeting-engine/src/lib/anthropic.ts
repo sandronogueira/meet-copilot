@@ -35,6 +35,15 @@ export class Anthropic {
   constructor(private apiKey: string) {}
 
   async complete(params: MessageParams): Promise<ModuleOutput<{ text: string; usage: AnthropicUsage }>> {
+    const body: Record<string, unknown> = {
+      model: params.model,
+      max_tokens: params.maxTokens,
+      system: params.system,
+      messages: [{ role: 'user', content: params.userText }],
+    }
+    // temperature é deprecado em alguns modelos (ex.: sonnet-5) — só envia quando pedido
+    if (params.temperature !== undefined) body.temperature = params.temperature
+
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -42,13 +51,7 @@ export class Anthropic {
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
       },
-      body: JSON.stringify({
-        model: params.model,
-        max_tokens: params.maxTokens,
-        temperature: params.temperature ?? 0.4,
-        system: params.system,
-        messages: [{ role: 'user', content: params.userText }],
-      }),
+      body: JSON.stringify(body),
     })
 
     if (!res.ok) {
