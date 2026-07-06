@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase/client'
 
 interface SegmentEvent {
@@ -19,36 +19,47 @@ interface SuggestionEvent {
   ts: number
 }
 
-const KIND_LABEL: Record<SuggestionEvent['kind'], string> = {
-  question: 'Pergunte',
-  insight: 'Insight',
-  objection: 'Objeção',
-  next_step: 'Próximo passo',
-  risk: 'Atenção',
+const KIND: Record<SuggestionEvent['kind'], { label: string; icon: string; tag: string }> = {
+  question: { label: 'Pergunte agora', icon: 'quiz', tag: 'Pergunta' },
+  insight: { label: 'Insight detectado', icon: 'lightbulb', tag: 'Insight' },
+  objection: { label: 'Contorne a objeção', icon: 'shield', tag: 'Objeção' },
+  next_step: { label: 'Próximo passo', icon: 'task_alt', tag: 'Ação' },
+  risk: { label: 'Atenção', icon: 'warning', tag: 'Risco' },
 }
 
 interface Props {
   meetingId: string
   title: string
+  meetingCode?: string | null
   initialStatus: string
   baseName: string | null
   expertName: string | null
+  variant?: 'session' | 'panel'
 }
 
-/**
- * War Room v1 — transcrição ao vivo via Realtime Broadcast + coluna do copiloto.
- * Botão "Janela flutuante" usa Document Picture-in-Picture (fica por cima do
- * Meet, estilo painel do Claude) com fallback para popup.
- */
-export function WarRoom({ meetingId, title, initialStatus, baseName, expertName }: Props) {
+function hhmm(ts: number): string {
+  const d = new Date(ts)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+function initial(name: string): string {
+  return name.replace(/^(O|A)\s+/, '').charAt(0).toUpperCase() || '?'
+}
+
+export function WarRoom({
+  meetingId,
+  title,
+  meetingCode,
+  initialStatus,
+  baseName,
+  expertName,
+  variant = 'session',
+}: Props) {
   const [finals, setFinals] = useState<SegmentEvent[]>([])
   const [partial, setPartial] = useState<SegmentEvent | null>(null)
   const [suggestions, setSuggestions] = useState<SuggestionEvent[]>([])
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [connected, setConnected] = useState(false)
-  const [floating, setFloating] = useState(false)
-
-  const rootRef = useRef<HTMLDivElement>(null)
-  const homeRef = useRef<HTMLDivElement>(null)
+  const [ask, setAsk] = useState('')
   const feedRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -60,149 +71,220 @@ export function WarRoom({ meetingId, title, initialStatus, baseName, expertName 
         if (seg.isFinal) {
           setPartial(null)
           setFinals((prev) => [...prev.slice(-200), seg])
-        } else {
-          setPartial(seg)
-        }
+        } else setPartial(seg)
       })
       .on('broadcast', { event: 'suggestion' }, ({ payload }) => {
         const s = payload as SuggestionEvent
-        setSuggestions((prev) => (prev.some((p) => p.id === s.id) ? prev : [...prev.slice(-30), s]))
+        setSuggestions((prev) => (prev.some((p) => p.id === s.id) ? prev : [...prev.slice(-40), s]))
       })
       .subscribe((status) => setConnected(status === 'SUBSCRIBED'))
-
     return () => {
       void supabase.removeChannel(channel)
     }
   }, [meetingId])
 
-  // auto-scroll do feed
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: 'smooth' })
   }, [finals, partial])
 
-  async function toggleFloat() {
-    const root = rootRef.current
-    const home = homeRef.current
-    if (!root || !home) return
+  const visibleSuggestions = useMemo(
+    () => suggestions.filter((s) => !dismissed.has(s.id)).reverse(),
+    [suggestions, dismissed],
+  )
 
-    const dpp = (
-      window as Window & {
-        documentPictureInPicture?: {
-          requestWindow: (o: { width: number; height: number }) => Promise<Window>
-        }
-      }
-    ).documentPictureInPicture
+  const panel = (
+    <aside
+      className={`flex flex-col bg-surface-container-lowest border-l border-white/10 ${
+        variant === 'panel' ? 'w-full' : 'w-full lg:w-[400px] shrink-0'
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+        <span className="material-symbols-outlined text-primary-fixed">psychiatry</span>
+        <h2 className="font-headline-lg text-lg text-primary flex-1">Meet Copilot</h2>
+        <span className={`w-2 h-2 rounded-full ${connected ? 'bg-primary-fixed shadow-[0_0_8px_#00fbfb]' : 'bg-outline'}`} />
+      </div>
 
-    if (!dpp) {
-      window.open(window.location.href, 'mc-float', 'width=440,height=760')
-      return
-    }
-
-    const pip = await dpp.requestWindow({ width: 440, height: 720 })
-
-    // copia os estilos da página para a janela flutuante
-    for (const sheet of Array.from(document.styleSheets)) {
-      try {
-        const style = pip.document.createElement('style')
-        style.textContent = Array.from(sheet.cssRules)
-          .map((r) => r.cssText)
-          .join('\n')
-        pip.document.head.appendChild(style)
-      } catch {
-        if (sheet.href) {
-          const link = pip.document.createElement('link')
-          link.rel = 'stylesheet'
-          link.href = sheet.href
-          pip.document.head.appendChild(link)
-        }
-      }
-    }
-    pip.document.documentElement.className = document.documentElement.className
-    pip.document.body.style.background = '#05080a'
-    pip.document.body.appendChild(root)
-    root.dataset.float = 'true'
-    setFloating(true)
-
-    pip.addEventListener('pagehide', () => {
-      root.dataset.float = 'false'
-      home.appendChild(root)
-      setFloating(false)
-    })
-  }
-
-  return (
-    <div ref={homeRef}>
-      <div ref={rootRef} className="war-root">
-        <header className="war-header">
-          <div>
-            <p className="kicker">
-              <span className={connected ? 'live-dot on' : 'live-dot'} /> {title}
-            </p>
-            <p className="mono muted" style={{ fontSize: '0.7rem', marginTop: '0.3rem' }}>
-              {expertName ? `Copiloto: ${expertName}` : 'Copiloto'}
-              {baseName ? ` · Base: ${baseName}` : ''} · {connected ? 'ao vivo' : initialStatus}
-            </p>
+      <div className="flex-1 overflow-y-auto">
+        {/* Live Transcription */}
+        <div className="px-4 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase">Transcrição ao vivo</h3>
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-error">
+              <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse" /> Gravando
+            </span>
           </div>
-          <button className="btn btn-ghost btn-inline" style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem' }} onClick={toggleFloat}>
-            {floating ? 'Voltar ao painel' : 'Janela flutuante'}
-          </button>
-        </header>
+          <div ref={feedRef} className="space-y-3 max-h-[38vh] overflow-y-auto pr-1">
+            {finals.length === 0 && !partial && (
+              <p className="text-on-surface-variant text-body-sm">Aguardando alguém falar na reunião…</p>
+            )}
+            {finals.map((seg, i) => (
+              <TranscriptLine key={seg.seq ?? `f${i}`} seg={seg} />
+            ))}
+            {partial && <TranscriptLine seg={partial} muted />}
+            {(finals.length > 0 || partial) && (
+              <div className="flex items-center gap-2 text-on-surface-variant text-body-sm pt-1">
+                <span className="material-symbols-outlined text-[18px] text-primary-fixed animate-pulse">graphic_eq</span>
+                Escutando…
+              </div>
+            )}
+          </div>
+        </div>
 
-        <div className="war-grid">
-          <section className="war-col">
-            <p className="kicker" style={{ marginBottom: '0.7rem' }}>
-              Transcrição
+        {/* AI Insights & Actions */}
+        <div className="px-4 pt-6 pb-4">
+          <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase mb-3">
+            Insights & Ações {expertName ? `· ${expertName}` : ''}
+          </h3>
+          {visibleSuggestions.length === 0 ? (
+            <p className="text-on-surface-variant text-body-sm">
+              O {expertName ?? 'copiloto'} vai destacar dores, objeções e próximos passos aqui
+              {baseName ? `, com base em "${baseName}"` : ''} conforme a conversa avança.
             </p>
-            <div ref={feedRef} className="war-feed">
-              {finals.length === 0 && !partial ? (
-                <p className="muted" style={{ fontSize: '0.85rem' }}>
-                  Aguardando alguém falar na reunião…
-                </p>
-              ) : null}
-              {finals.map((seg, i) => (
-                <p key={seg.seq ?? `f${i}`} className="war-line">
-                  <span className="mono war-speaker">{seg.speaker}</span> {seg.text}
-                </p>
+          ) : (
+            <div className="space-y-3">
+              {visibleSuggestions.map((s) => (
+                <InsightCard
+                  key={s.id}
+                  sug={s}
+                  onDismiss={() => setDismissed((prev) => new Set(prev).add(s.id))}
+                />
               ))}
-              {partial ? (
-                <p className="war-line partial">
-                  <span className="mono war-speaker">{partial.speaker}</span> {partial.text}
-                </p>
-              ) : null}
             </div>
-          </section>
+          )}
+        </div>
+      </div>
 
-          <section className="war-col">
-            <p className="kicker" style={{ marginBottom: '0.7rem' }}>
-              Copiloto {expertName ? `· ${expertName}` : ''}
-            </p>
-            <div className="war-feed">
-              {suggestions.length === 0 ? (
-                <p className="muted" style={{ fontSize: '0.85rem' }}>
-                  As sugestões do {expertName ?? 'copiloto'} aparecem aqui conforme a conversa avança
-                  {baseName ? `, alimentadas pela base "${baseName}"` : ''}.
-                </p>
-              ) : (
-                [...suggestions].reverse().map((s) => (
-                  <div key={s.id} className="sug-card">
-                    <span className="sug-kind">{KIND_LABEL[s.kind]}</span>
-                    <p className="sug-content">{s.content}</p>
-                    {s.rationale ? <p className="sug-why">{s.rationale}</p> : null}
-                  </div>
-                ))
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.8rem' }}>
-              <button className="btn btn-ghost" disabled title="Chega na F6">
-                Me ajuda agora
-              </button>
-              <button className="btn btn-primary" disabled title="Chega na F6">
-                Gerar Proposta
-              </button>
-            </div>
-          </section>
+      {/* Ask the copilot */}
+      <div className="border-t border-white/10 p-3">
+        <div className="flex items-center gap-2 bg-surface-container-high border border-white/10 rounded-full px-4 py-2">
+          <input
+            value={ask}
+            onChange={(e) => setAsk(e.target.value)}
+            placeholder="Pergunte algo ao Copilot…"
+            className="flex-1 bg-transparent text-primary placeholder-on-surface-variant focus:outline-none text-body-sm"
+            disabled
+            title="Disponível quando a IA estiver ativa"
+          />
+          <button className="material-symbols-outlined text-on-surface-variant" disabled>
+            send
+          </button>
+        </div>
+        <p className="text-center text-[11px] text-on-surface-variant mt-2 opacity-70">
+          A IA pode cometer erros. Confira as respostas.
+        </p>
+      </div>
+    </aside>
+  )
+
+  if (variant === 'panel') return <div className="h-[100dvh]">{panel}</div>
+
+  // variant 'session' — palco da reunião à esquerda + painel à direita
+  const speakers = Array.from(new Set(finals.map((f) => f.speaker))).slice(0, 4)
+  return (
+    <div className="fixed inset-0 z-[60] flex bg-black">
+      <MeetingStage title={title} code={meetingCode ?? null} status={initialStatus} speakers={speakers} />
+      {panel}
+    </div>
+  )
+}
+
+function TranscriptLine({ seg, muted }: { seg: SegmentEvent; muted?: boolean }) {
+  return (
+    <div className={`flex gap-2.5 ${muted ? 'opacity-60' : ''}`}>
+      <div className="w-7 h-7 rounded-full bg-surface-container-high border border-white/10 grid place-items-center text-[11px] font-bold text-primary-fixed shrink-0">
+        {initial(seg.speaker)}
+      </div>
+      <div className="min-w-0">
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-medium text-primary truncate">{seg.speaker}</span>
+          <span className="text-[10px] text-on-surface-variant font-mono">{hhmm(seg.ts)}</span>
+        </div>
+        <p className={`text-body-sm ${muted ? 'italic text-on-surface-variant' : 'text-on-surface'}`}>{seg.text}</p>
+      </div>
+    </div>
+  )
+}
+
+function InsightCard({ sug, onDismiss }: { sug: SuggestionEvent; onDismiss: () => void }) {
+  const meta = KIND[sug.kind]
+  return (
+    <div className="bg-[#111214] border border-outline-variant rounded-xl p-4 relative">
+      <div className="flex items-start gap-3">
+        <span className="material-symbols-outlined text-primary-fixed text-[22px] shrink-0">{meta.icon}</span>
+        <div className="min-w-0 flex-1">
+          <h4 className="font-headline-lg text-[15px] text-primary mb-1">{meta.label}</h4>
+          <p className="text-body-sm text-on-surface leading-relaxed">{sug.content}</p>
+          {sug.rationale && <p className="text-[12px] text-on-surface-variant italic mt-1.5">{sug.rationale}</p>}
+          <div className="flex items-center gap-2 mt-3">
+            <span className="px-2 py-0.5 rounded border border-primary-fixed/30 bg-primary-fixed/10 text-primary-fixed font-label-caps text-[10px]">
+              {meta.tag}
+            </span>
+            <button
+              onClick={onDismiss}
+              className="ml-auto text-[11px] text-on-surface-variant hover:text-primary-fixed transition-colors"
+            >
+              Dispensar
+            </button>
+          </div>
         </div>
       </div>
     </div>
+  )
+}
+
+function MeetingStage({
+  title,
+  code,
+  status,
+  speakers,
+}: {
+  title: string
+  code: string | null
+  status: string
+  speakers: string[]
+}) {
+  const tiles = speakers.length > 0 ? speakers : ['Você']
+  return (
+    <main className="hidden lg:flex flex-1 relative flex-col bg-[#0b0d0e]">
+      {/* overlays */}
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 text-on-surface-variant text-body-sm font-mono">
+        <span className="w-2 h-2 rounded-full bg-error animate-pulse" />
+        {code ? `${code}` : title}
+        <span className="text-outline">· {status}</span>
+      </div>
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-surface-container-high/80 backdrop-blur border border-white/10 rounded-full px-3 py-1.5 text-body-sm text-on-surface">
+        <span className="material-symbols-outlined text-[16px] text-primary-fixed">auto_awesome</span>
+        Meet Copilot ativo
+      </div>
+
+      {/* participant tiles */}
+      <div className="flex-1 grid place-items-center p-8">
+        <div className={`grid gap-4 w-full max-w-3xl ${tiles.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {tiles.map((name) => (
+            <div
+              key={name}
+              className="aspect-video rounded-xl bg-gradient-to-br from-surface-container-high to-surface-container-low border border-white/10 grid place-items-center relative overflow-hidden"
+            >
+              <div className="w-20 h-20 rounded-full bg-primary-fixed/10 border border-primary-fixed/30 grid place-items-center font-display-lg text-3xl font-bold text-primary-fixed">
+                {initial(name)}
+              </div>
+              <span className="absolute bottom-3 left-3 text-body-sm text-primary bg-black/40 rounded px-2 py-0.5">{name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* control bar (representa o Meet — controles reais ficam na aba do Meet) */}
+      <div className="pb-6 flex items-center justify-center gap-3">
+        {['mic', 'videocam', 'present_to_all', 'more_vert'].map((ic) => (
+          <span key={ic} className="w-11 h-11 rounded-full bg-surface-container-high border border-white/10 grid place-items-center text-on-surface-variant material-symbols-outlined">
+            {ic}
+          </span>
+        ))}
+        <span className="w-11 h-11 rounded-full bg-error grid place-items-center text-on-error material-symbols-outlined">call_end</span>
+      </div>
+      <p className="text-center text-[11px] text-outline pb-3">Sua reunião acontece no Google Meet — este é o painel do copiloto ao lado.</p>
+    </main>
   )
 }

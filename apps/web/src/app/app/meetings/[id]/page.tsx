@@ -12,10 +12,14 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
 
   const { data: meeting } = await supabase
     .from('meetings')
-    .select('id, title, status, platform, settings, workspace_id')
+    .select('id, title, status, platform, settings, workspace_id, meeting_url')
     .eq('id', id)
     .single()
   if (!meeting) notFound()
+
+  const meetingCode = meeting.meeting_url
+    ? meeting.meeting_url.replace(/^https?:\/\//, '').split('?')[0]!.split('/').filter(Boolean).pop() ?? null
+    : null
 
   const settings = (meeting.settings ?? {}) as { context_base_id?: string }
 
@@ -39,9 +43,11 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
     <WarRoom
       meetingId={meeting.id}
       title={meeting.title ?? 'Reunião ao vivo'}
+      meetingCode={meetingCode}
       initialStatus={meeting.status}
       baseName={base?.name ?? null}
       expertName={expert?.name ?? null}
+      variant="session"
     />
   )
 }

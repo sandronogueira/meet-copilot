@@ -34,15 +34,14 @@ export default async function PanelPage({
   }
 
   return (
-    <div style={{ padding: '0.9rem' }}>
-      <WarRoom
-        meetingId={id}
-        title={payload.title ?? 'Reunião ao vivo'}
-        initialStatus="in_call"
-        baseName={payload.baseName ?? null}
-        expertName={payload.expertName ?? null}
-      />
-    </div>
+    <WarRoom
+      meetingId={id}
+      title={payload.title ?? 'Reunião ao vivo'}
+      initialStatus="in_call"
+      baseName={payload.baseName ?? null}
+      expertName={payload.expertName ?? null}
+      variant="panel"
+    />
   )
 }
 
