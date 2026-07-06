@@ -6,10 +6,15 @@ import { Persistence } from './lib/persistence'
 import { SessionManager, type SessionClaims } from './session/SessionManager'
 import { GroqWhisperProvider } from './stt/GroqWhisperProvider'
 import type { STTProvider } from './stt/STTProvider'
+import { CopilotPipeline } from './pipeline/CopilotPipeline'
 
 const config = loadConfig()
 const persistence = new Persistence(config)
-const sessions = new SessionManager(persistence)
+
+const pipeline = config.ANTHROPIC_API_KEY ? new CopilotPipeline(config.ANTHROPIC_API_KEY) : null
+if (!pipeline) console.warn('[config] ANTHROPIC_API_KEY ausente — copiloto (sugestões) desativado')
+
+const sessions = new SessionManager(persistence, pipeline)
 const wsSecret = new TextEncoder().encode(config.ENGINE_WS_SECRET)
 const startedAt = Date.now()
 
@@ -117,6 +122,7 @@ const server = createServer((req, res) => {
         sessions: sessions.count,
         supabase: Boolean(config.SUPABASE_URL),
         stt: stt?.name ?? null,
+        copilot: Boolean(pipeline),
       }),
     )
     return

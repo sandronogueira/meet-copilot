@@ -11,6 +11,22 @@ interface SegmentEvent {
   ts: number
 }
 
+interface SuggestionEvent {
+  id: string
+  kind: 'question' | 'insight' | 'objection' | 'next_step' | 'risk'
+  content: string
+  rationale?: string
+  ts: number
+}
+
+const KIND_LABEL: Record<SuggestionEvent['kind'], string> = {
+  question: 'Pergunte',
+  insight: 'Insight',
+  objection: 'Objeção',
+  next_step: 'Próximo passo',
+  risk: 'Atenção',
+}
+
 interface Props {
   meetingId: string
   title: string
@@ -27,6 +43,7 @@ interface Props {
 export function WarRoom({ meetingId, title, initialStatus, baseName, expertName }: Props) {
   const [finals, setFinals] = useState<SegmentEvent[]>([])
   const [partial, setPartial] = useState<SegmentEvent | null>(null)
+  const [suggestions, setSuggestions] = useState<SuggestionEvent[]>([])
   const [connected, setConnected] = useState(false)
   const [floating, setFloating] = useState(false)
 
@@ -46,6 +63,10 @@ export function WarRoom({ meetingId, title, initialStatus, baseName, expertName 
         } else {
           setPartial(seg)
         }
+      })
+      .on('broadcast', { event: 'suggestion' }, ({ payload }) => {
+        const s = payload as SuggestionEvent
+        setSuggestions((prev) => (prev.some((p) => p.id === s.id) ? prev : [...prev.slice(-30), s]))
       })
       .subscribe((status) => setConnected(status === 'SUBSCRIBED'))
 
@@ -153,22 +174,26 @@ export function WarRoom({ meetingId, title, initialStatus, baseName, expertName 
 
           <section className="war-col">
             <p className="kicker" style={{ marginBottom: '0.7rem' }}>
-              Copiloto
+              Copiloto {expertName ? `· ${expertName}` : ''}
             </p>
             <div className="war-feed">
-              <div className="panel" style={{ padding: '1rem' }}>
-                <p className="mono muted" style={{ fontSize: '0.68rem', letterSpacing: '0.15em' }}>
-                  EM CONSTRUÇÃO — F3
+              {suggestions.length === 0 ? (
+                <p className="muted" style={{ fontSize: '0.85rem' }}>
+                  As sugestões do {expertName ?? 'copiloto'} aparecem aqui conforme a conversa avança
+                  {baseName ? `, alimentadas pela base "${baseName}"` : ''}.
                 </p>
-                <p style={{ fontSize: '0.9rem', marginTop: '0.4rem' }}>
-                  Aqui vão entrar, em tempo real: perguntas sugeridas pelo {expertName ?? 'Especialista'},
-                  fact-checks com fontes e insights — alimentados pela base
-                  {baseName ? ` "${baseName}"` : ' de conhecimento'}.
-                </p>
-              </div>
+              ) : (
+                [...suggestions].reverse().map((s) => (
+                  <div key={s.id} className="sug-card">
+                    <span className="sug-kind">{KIND_LABEL[s.kind]}</span>
+                    <p className="sug-content">{s.content}</p>
+                    {s.rationale ? <p className="sug-why">{s.rationale}</p> : null}
+                  </div>
+                ))
+              )}
             </div>
             <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.8rem' }}>
-              <button className="btn btn-ghost" disabled title="Chega na F3">
+              <button className="btn btn-ghost" disabled title="Chega na F6">
                 Me ajuda agora
               </button>
               <button className="btn btn-primary" disabled title="Chega na F6">
