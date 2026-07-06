@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Meet Copilot",
+  "version": "0.1.0",
+  "description": "Entre na reunião sem saber nada. Saia como especialista.",
+  "action": { "default_title": "Abrir Meet Copilot" },
+  "side_panel": { "default_path": "panel.html" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["sidePanel", "tabCapture", "offscreen", "storage", "tabs"],
+  "host_permissions": [
+    "https://meet.google.com/*",
+    "https://meet.2020agency.co/*",
+    "https://*.trycloudflare.com/*",
+    "https://engine.2020agency.co/*",
+    "http://localhost:3000/*",
+    "http://localhost:8080/*"
+  ]
+}

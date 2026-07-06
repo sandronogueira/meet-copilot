@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Meet Copilot</title>
+    <style>
+      :root {
+        --bg: #05080a;
+        --fg: #eaf3f6;
+        --dim: #9db4bd;
+        --accent: #2de1fd;
+        --line: rgba(148, 210, 230, 0.18);
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, sans-serif;
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.65rem 0.9rem;
+        border-bottom: 1px solid var(--line);
+        flex-shrink: 0;
+      }
+      .brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.9rem; }
+      .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+      button {
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 0.45rem 0.9rem;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--fg);
+        cursor: pointer;
+      }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #032a33; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      #home { flex: 1; display: grid; place-items: center; padding: 1.5rem; text-align: center; }
+      #home h1 { font-size: 1.15rem; margin-bottom: 0.5rem; }
+      #home p { color: var(--dim); font-size: 0.85rem; margin-bottom: 1.2rem; max-width: 30ch; }
+      #status { font-size: 0.72rem; color: var(--dim); margin-top: 0.9rem; min-height: 1.2em; }
+      #frame { flex: 1; border: 0; width: 100%; display: none; }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="brand"><span class="dot"></span> Meet Copilot</span>
+      <button id="btn-stop" class="hidden">Encerrar</button>
+    </header>
+
+    <div id="home">
+      <div>
+        <h1>Entre sem saber nada.<br />Saia como especialista.</h1>
+        <p>Abra a aba da sua reunião do Google Meet e inicie o copiloto.</p>
+        <button id="btn-start" class="primary">Iniciar copiloto nesta reunião</button>
+        <button id="btn-login" class="hidden">Fazer login no Meet Copilot</button>
+        <p id="status"></p>
+      </div>
+    </div>
+
+    <iframe id="frame" allow="clipboard-write"></iframe>
+
+    <script src="panel.js"></script>
+  </body>
+</html>
