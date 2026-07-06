@@ -68,22 +68,33 @@ el.start.addEventListener('click', async () => {
 
     const { ingestUrl, ingestToken, panelUrl } = json.data
 
+    // Obtém o streamId AQUI, no painel — que é o contexto invocado pelo clique
+    // no ícone (tabCapture exige isso; falha se chamado no service worker).
+    let streamId
+    try {
+      streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id })
+    } catch (e) {
+      const err = String(e)
+      if (/invoked|activeTab|cannot be captured/i.test(err)) {
+        setStatus(
+          'Para capturar o áudio: com a aba da chamada do Meet à frente, clique no ícone do Meet Copilot na barra do Chrome (isso libera o acesso a esta aba) e clique em Iniciar de novo.',
+        )
+      } else {
+        setStatus(`Não consegui acessar o áudio da aba: ${err}`)
+      }
+      el.start.disabled = false
+      return
+    }
+
     const captura = await chrome.runtime.sendMessage({
       target: 'background',
       type: 'START_CAPTURE',
-      tabId: tab.id,
+      streamId,
       ingestUrl,
       ingestToken,
     })
     if (!captura?.ok) {
-      const err = String(captura?.error ?? '')
-      if (/invoked|activeTab|cannot be captured/i.test(err)) {
-        setStatus(
-          'Para capturar o áudio, clique no ícone do Meet Copilot na barra do Chrome COM esta aba do Meet aberta e à frente, depois clique em Iniciar de novo.',
-        )
-      } else {
-        setStatus(`Falha na captura de áudio: ${err || 'desconhecida'}`)
-      }
+      setStatus(`Falha ao iniciar a captura: ${captura?.error ?? 'desconhecida'}`)
       el.start.disabled = false
       return
     }

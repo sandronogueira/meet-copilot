@@ -20,14 +20,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.target !== 'background') return
 
   if (msg.type === 'START_CAPTURE') {
+    // streamId já foi obtido no painel (contexto invocado) — só liga o offscreen
     ;(async () => {
       try {
-        const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: msg.tabId })
         await ensureOffscreen()
         await chrome.runtime.sendMessage({
           target: 'offscreen',
           type: 'OFFSCREEN_START',
-          streamId,
+          streamId: msg.streamId,
           ingestUrl: msg.ingestUrl,
           ingestToken: msg.ingestToken,
         })
