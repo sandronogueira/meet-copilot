@@ -76,7 +76,14 @@ el.start.addEventListener('click', async () => {
       ingestToken,
     })
     if (!captura?.ok) {
-      setStatus(`Falha na captura de áudio: ${captura?.error ?? 'desconhecida'}`)
+      const err = String(captura?.error ?? '')
+      if (/invoked|activeTab|cannot be captured/i.test(err)) {
+        setStatus(
+          'Para capturar o áudio, clique no ícone do Meet Copilot na barra do Chrome COM esta aba do Meet aberta e à frente, depois clique em Iniciar de novo.',
+        )
+      } else {
+        setStatus(`Falha na captura de áudio: ${err || 'desconhecida'}`)
+      }
       el.start.disabled = false
       return
     }

@@ -6,7 +6,7 @@
   "action": { "default_title": "Abrir Meet Copilot" },
   "side_panel": { "default_path": "panel.html" },
   "background": { "service_worker": "background.js" },
-  "permissions": ["sidePanel", "tabCapture", "offscreen", "storage", "tabs"],
+  "permissions": ["activeTab", "sidePanel", "tabCapture", "offscreen", "storage", "tabs"],
   "host_permissions": [
     "https://meet.google.com/*",
     "https://meet.2020agency.co/*",
