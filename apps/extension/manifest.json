@@ -10,8 +10,7 @@
   "host_permissions": [
     "https://meet.google.com/*",
     "https://meet.2020agency.co/*",
-    "https://*.trycloudflare.com/*",
-    "https://engine.2020agency.co/*",
+    "https://agencia2020-meet-copilot-engine.ocgogh.easypanel.host/*",
     "http://localhost:3000/*",
     "http://localhost:8080/*"
   ]
