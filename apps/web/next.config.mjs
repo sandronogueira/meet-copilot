@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@meet-copilot/shared'],
+  experimental: {
+    serverActions: {
+      // uploads das bases de conhecimento (PDF/DOCX/XLSX até 15MB) + avatar do clone
+      bodySizeLimit: '20mb',
+    },
+  },
   async headers() {
     return [
       {

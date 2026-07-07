@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { supabaseServer } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { extractTextFromFile } from '@/lib/extract-text'
 
 export interface ActionResult {
   error?: string
@@ -110,6 +112,65 @@ export async function addDocumentAction(
         }
 
   const { error } = await supabase.from('documents').insert(doc)
+  if (error) return { error: error.message }
+
+  revalidatePath('/app/context')
+  return {}
+}
+
+const MAX_FILE_BYTES = 15 * 1024 * 1024
+
+/**
+ * Upload de arquivo (PDF, DOCX, XLSX, CSV, MD, TXT) para uma base.
+ * O texto é extraído AQUI e salvo em meta.raw_text — pronto para o engine
+ * usar como contexto imediatamente. O original vai para o Storage privado.
+ */
+export async function uploadFileDocumentAction(formData: FormData): Promise<ActionResult> {
+  const contextBaseId = formData.get('contextBaseId')
+  const file = formData.get('file')
+  if (typeof contextBaseId !== 'string' || !z.uuid().safeParse(contextBaseId).success) {
+    return { error: 'Base inválida' }
+  }
+  if (!(file instanceof File) || file.size === 0) return { error: 'Selecione um arquivo' }
+  if (file.size > MAX_FILE_BYTES) return { error: 'Arquivo acima de 15MB' }
+
+  const { supabase, workspaceId } = await ctx()
+
+  const { data: base } = await supabase
+    .from('context_bases')
+    .select('id')
+    .eq('id', contextBaseId)
+    .eq('workspace_id', workspaceId)
+    .single()
+  if (!base) return { error: 'Base não encontrada' }
+
+  const buf = Buffer.from(await file.arrayBuffer())
+  const extracted = await extractTextFromFile(file.name, buf)
+  if (!extracted.ok) return { error: extracted.error }
+
+  // Original no Storage privado (fail-soft: sem service key, segue só com o texto)
+  let storagePath: string | null = null
+  const admin = supabaseAdmin()
+  if (admin) {
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-80)
+    const path = `${workspaceId}/${contextBaseId}/${crypto.randomUUID()}-${safeName}`
+    const { error: upErr } = await admin.storage.from('context-docs').upload(path, buf, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false,
+    })
+    if (upErr) console.error('[upload context-docs]', upErr.message)
+    else storagePath = path
+  }
+
+  const { error } = await supabase.from('documents').insert({
+    workspace_id: workspaceId,
+    context_base_id: contextBaseId,
+    source_type: 'file',
+    title: file.name.slice(0, 120),
+    storage_path: storagePath,
+    status: 'ready',
+    meta: { raw_text: extracted.text, original_bytes: file.size },
+  })
   if (error) return { error: error.message }
 
   revalidatePath('/app/context')

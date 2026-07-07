@@ -1,7 +1,14 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { createBaseAction, addDocumentAction, deleteDocumentAction } from './actions'
+import { useRef, useState, useTransition } from 'react'
+import {
+  createBaseAction,
+  addDocumentAction,
+  deleteDocumentAction,
+  uploadFileDocumentAction,
+} from './actions'
+
+const ACCEPTED_FILES = '.pdf,.docx,.doc,.xlsx,.xls,.csv,.md,.markdown,.txt'
 
 export interface BaseDoc {
   id: string
@@ -47,10 +54,12 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
   const [baseName, setBaseName] = useState('')
   const [baseDescription, setBaseDescription] = useState('')
 
-  const [docKind, setDocKind] = useState<'url' | 'text'>('url')
+  const [docKind, setDocKind] = useState<'url' | 'text' | 'file'>('url')
   const [docUrl, setDocUrl] = useState('')
   const [docTitle, setDocTitle] = useState('')
   const [docText, setDocText] = useState('')
+  const [docFile, setDocFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const selected = bases.find((b) => b.id === selectedId) ?? bases[0] ?? null
 
@@ -187,6 +196,16 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
                 >
                   Texto livre
                 </button>
+                <button
+                  onClick={() => setDocKind('file')}
+                  className={`px-4 py-1.5 rounded-full border text-sm font-medium transition-colors ${
+                    docKind === 'file'
+                      ? 'border-primary-fixed text-primary-fixed bg-primary-fixed/10'
+                      : 'border-white/10 text-on-surface-variant hover:border-white/30'
+                  }`}
+                >
+                  Arquivo
+                </button>
               </div>
 
               {/* Input */}
@@ -211,7 +230,7 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
                     Adicionar
                   </button>
                 </div>
-              ) : (
+              ) : docKind === 'text' ? (
                 <div className="mb-8 space-y-3">
                   <input
                     value={docTitle}
@@ -246,6 +265,54 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
                     className="bg-surface-tint text-on-primary font-medium rounded-lg px-6 py-2 text-sm hover:shadow-[0_0_15px_rgba(0,221,221,0.3)] transition-all disabled:opacity-50"
                   >
                     Adicionar
+                  </button>
+                </div>
+              ) : (
+                <div className="mb-8 space-y-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={ACCEPTED_FILES}
+                    className="hidden"
+                    onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full border border-dashed border-white/20 rounded-lg p-6 text-center text-on-surface-variant hover:border-primary-fixed hover:text-primary-fixed transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[28px] block mb-1">upload_file</span>
+                    {docFile ? (
+                      <span className="text-sm font-medium text-primary block truncate">
+                        {docFile.name}{' '}
+                        <span className="text-on-surface-variant font-normal">
+                          ({(docFile.size / 1024 / 1024).toFixed(1)}MB)
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-sm block">
+                        Clique para escolher — PDF, DOCX, XLSX, CSV, MD ou TXT (até 15MB)
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    disabled={pending || !docFile}
+                    onClick={() => {
+                      if (!docFile || !selected) return
+                      const fd = new FormData()
+                      fd.set('contextBaseId', selected.id)
+                      fd.set('file', docFile)
+                      run(
+                        () => uploadFileDocumentAction(fd),
+                        () => {
+                          setDocFile(null)
+                          if (fileInputRef.current) fileInputRef.current.value = ''
+                        },
+                      )
+                    }}
+                    className="bg-surface-tint text-on-primary font-medium rounded-lg px-6 py-2 text-sm hover:shadow-[0_0_15px_rgba(0,221,221,0.3)] transition-all disabled:opacity-50"
+                  >
+                    {pending ? 'Enviando e extraindo texto…' : 'Enviar arquivo'}
                   </button>
                 </div>
               )}

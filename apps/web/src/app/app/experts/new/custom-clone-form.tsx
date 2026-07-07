@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createCustomExpertAction } from '../actions'
+import { createCustomExpertAction, uploadExpertAvatarAction } from '../actions'
 
 const TONES = ['Formal', 'Persuasivo', 'Amigável', 'Analítico', 'Assertivo']
 const INTERRUPTIONS = [
@@ -21,11 +21,33 @@ export function CustomCloneForm() {
   const [description, setDescription] = useState('')
   const [tone, setTone] = useState('Persuasivo')
   const [interruption, setInterruption] = useState<'discreto' | 'moderado' | 'ativo'>('moderado')
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  function pickAvatar(file: File | null) {
+    setAvatarFile(file)
+    setAvatarPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return file ? URL.createObjectURL(file) : null
+    })
+  }
 
   function submit() {
     setError(null)
     startTransition(async () => {
-      const r = await createCustomExpertAction({ name, role, description, tone, interruption })
+      let avatarUrl: string | undefined
+      if (avatarFile) {
+        const fd = new FormData()
+        fd.set('file', avatarFile)
+        const up = await uploadExpertAvatarAction(fd)
+        if (up.error) {
+          setError(`Foto: ${up.error}`)
+          return
+        }
+        avatarUrl = up.url
+      }
+      const r = await createCustomExpertAction({ name, role, description, tone, interruption, avatarUrl })
       if (r?.error) setError(r.error)
       // sucesso → a action redireciona para /app/experts
     })
@@ -52,14 +74,46 @@ export function CustomCloneForm() {
             <label className="block font-label-caps text-label-caps text-on-surface-variant uppercase mb-4">
               Avatar do Agente
             </label>
-            <div className="aspect-square w-full rounded-full border-2 border-dashed border-outline-variant/60 grid place-items-center">
-              <div className="w-24 h-24 rounded-full bg-primary-fixed/10 border border-primary-fixed/40 grid place-items-center font-display-lg text-4xl font-bold text-primary-fixed">
-                {(name.trim().charAt(0) || '?').toUpperCase()}
-              </div>
-            </div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+              className="hidden"
+              onChange={(e) => pickAvatar(e.target.files?.[0] ?? null)}
+            />
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              title="Enviar foto do clone"
+              className="aspect-square w-full rounded-full border-2 border-dashed border-outline-variant/60 grid place-items-center overflow-hidden hover:border-primary-fixed transition-colors group relative"
+            >
+              {avatarPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarPreview} alt="Foto do clone" className="absolute inset-0 w-full h-full object-cover" />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-primary-fixed/10 border border-primary-fixed/40 grid place-items-center font-display-lg text-4xl font-bold text-primary-fixed">
+                  {(name.trim().charAt(0) || '?').toUpperCase()}
+                </div>
+              )}
+              <span className="absolute inset-x-0 bottom-0 py-2 bg-black/60 text-primary text-[12px] font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                <span className="material-symbols-outlined text-[16px]">photo_camera</span>
+                {avatarPreview ? 'Trocar foto' : 'Enviar foto'}
+              </span>
+            </button>
             <p className="text-center font-body-sm text-body-sm text-on-surface-variant mt-3">
-              Gerado a partir da inicial. Upload de imagem em breve.
+              {avatarPreview
+                ? 'Foto selecionada — será salva ao criar o clone.'
+                : 'Clique para enviar uma foto (PNG/JPG até 5MB) ou deixe a inicial.'}
             </p>
+            {avatarPreview ? (
+              <button
+                type="button"
+                onClick={() => pickAvatar(null)}
+                className="block mx-auto mt-1 text-[12px] text-on-surface-variant hover:text-error transition-colors"
+              >
+                Remover foto
+              </button>
+            ) : null}
           </div>
 
           <div className="bg-surface p-6 rounded-xl border border-outline-variant/50">

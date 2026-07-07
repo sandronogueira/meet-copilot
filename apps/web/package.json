@@ -13,10 +13,13 @@
     "@supabase/ssr": "^0.6.0",
     "@supabase/supabase-js": "^2.49.0",
     "jose": "^6.0.0",
+    "mammoth": "^1.12.0",
     "next": "^15.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "svix": "^1.45.0",
+    "unpdf": "^1.6.2",
+    "xlsx": "^0.18.5",
     "zod": "^4.0.0"
   },
   "devDependencies": {

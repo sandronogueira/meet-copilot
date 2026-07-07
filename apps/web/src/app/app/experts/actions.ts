@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { supabaseServer } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface ActionResult {
   error?: string
@@ -49,12 +50,45 @@ export async function selectExpertAction(expertId: string): Promise<ActionResult
   return {}
 }
 
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024
+
+/**
+ * Upload da foto/thumbnail do clone → bucket público `avatars`.
+ * Retorna a URL pública para o form anexar no createCustomExpertAction.
+ */
+export async function uploadExpertAvatarAction(
+  formData: FormData,
+): Promise<ActionResult & { url?: string }> {
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) return { error: 'Selecione uma imagem' }
+  if (file.size > MAX_AVATAR_BYTES) return { error: 'Imagem acima de 5MB' }
+  if (!/^image\/(png|jpe?g|webp|gif|avif)$/.test(file.type)) {
+    return { error: 'Formato inválido — envie PNG, JPG, WEBP, GIF ou AVIF' }
+  }
+
+  const { workspaceId } = await ctx()
+  const admin = supabaseAdmin()
+  if (!admin) return { error: 'Upload indisponível no momento (storage não configurado)' }
+
+  const ext = (file.type.split('/')[1] ?? 'png').replace('jpeg', 'jpg')
+  const path = `experts/${workspaceId}/${crypto.randomUUID()}.${ext}`
+  const { error } = await admin.storage.from('avatars').upload(path, Buffer.from(await file.arrayBuffer()), {
+    contentType: file.type,
+    upsert: false,
+  })
+  if (error) return { error: error.message }
+
+  const { data } = admin.storage.from('avatars').getPublicUrl(path)
+  return { url: data.publicUrl }
+}
+
 const createCloneSchema = z.object({
   name: z.string().min(2, 'Dê um nome ao clone').max(80),
   role: z.string().max(120).optional(),
   description: z.string().min(20, 'Descreva a personalidade em pelo menos uma frase'),
   tone: z.string().min(2),
   interruption: z.enum(['discreto', 'moderado', 'ativo']),
+  avatarUrl: z.url().optional(),
 })
 
 function slugify(name: string): string {
@@ -77,7 +111,7 @@ export async function createCustomExpertAction(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message }
 
   const { supabase, workspaceId } = await ctx()
-  const { name, role, description, tone, interruption } = parsed.data
+  const { name, role, description, tone, interruption, avatarUrl } = parsed.data
 
   // Voice DNA composto a partir das escolhas do formulário
   const stylePrompt = [
@@ -104,6 +138,7 @@ export async function createCustomExpertAction(
     bio: description.slice(0, 300),
     category: 'Seu Modelo',
     interruption,
+    avatar_url: avatarUrl ?? null,
     style_prompt: stylePrompt,
     question_frameworks: { tone, interruption },
     status: 'active',
