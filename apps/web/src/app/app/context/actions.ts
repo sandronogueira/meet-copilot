@@ -52,6 +52,55 @@ export async function createBaseAction(input: z.infer<typeof createBaseSchema>):
   return {}
 }
 
+const updateBaseSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(2, 'Dê um nome à base').max(80),
+  description: z.string().max(300).optional(),
+})
+
+export async function updateBaseAction(input: z.infer<typeof updateBaseSchema>): Promise<ActionResult> {
+  const parsed = updateBaseSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message }
+
+  const { supabase, workspaceId } = await ctx()
+  const { error } = await supabase
+    .from('context_bases')
+    .update({ name: parsed.data.name, description: parsed.data.description || null })
+    .eq('id', parsed.data.id)
+    .eq('workspace_id', workspaceId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/app/context')
+  return {}
+}
+
+/** Exclui a base e TODOS os seus documentos (cascade) + originais no Storage. */
+export async function deleteBaseAction(baseId: string): Promise<ActionResult> {
+  if (!z.uuid().safeParse(baseId).success) return { error: 'id inválido' }
+
+  const { supabase, workspaceId } = await ctx()
+
+  // originais no Storage (fail-soft: órfãos não bloqueiam a exclusão)
+  const admin = supabaseAdmin()
+  if (admin) {
+    const prefix = `${workspaceId}/${baseId}`
+    const { data: files } = await admin.storage.from('context-docs').list(prefix, { limit: 100 })
+    if (files && files.length > 0) {
+      await admin.storage.from('context-docs').remove(files.map((f) => `${prefix}/${f.name}`))
+    }
+  }
+
+  const { error } = await supabase
+    .from('context_bases')
+    .delete()
+    .eq('id', baseId)
+    .eq('workspace_id', workspaceId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/app/context')
+  return {}
+}
+
 // ── Documentos ───────────────────────────────────────────────────────────────
 
 const addDocumentSchema = z.discriminatedUnion('kind', [
@@ -177,10 +226,49 @@ export async function uploadFileDocumentAction(formData: FormData): Promise<Acti
   return {}
 }
 
+/** Edita título/conteúdo de um documento de texto livre. */
+const updateTextDocSchema = z.object({
+  id: z.uuid(),
+  title: z.string().min(2, 'Dê um título ao documento').max(120),
+  text: z.string().min(20, 'Conteúdo muito curto — capricha'),
+})
+
+export async function updateTextDocumentAction(
+  input: z.infer<typeof updateTextDocSchema>,
+): Promise<ActionResult> {
+  const parsed = updateTextDocSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message }
+
+  const { supabase, workspaceId } = await ctx()
+  const { error } = await supabase
+    .from('documents')
+    .update({ title: parsed.data.title, meta: { raw_text: parsed.data.text } })
+    .eq('id', parsed.data.id)
+    .eq('workspace_id', workspaceId)
+    .eq('source_type', 'text')
+  if (error) return { error: error.message }
+
+  revalidatePath('/app/context')
+  return {}
+}
+
 export async function deleteDocumentAction(documentId: string): Promise<ActionResult> {
   if (!z.uuid().safeParse(documentId).success) return { error: 'id inválido' }
 
   const { supabase, workspaceId } = await ctx()
+
+  // arquivo original no Storage sai junto (fail-soft)
+  const { data: doc } = await supabase
+    .from('documents')
+    .select('storage_path')
+    .eq('id', documentId)
+    .eq('workspace_id', workspaceId)
+    .single()
+  if (doc?.storage_path) {
+    const admin = supabaseAdmin()
+    if (admin) await admin.storage.from('context-docs').remove([doc.storage_path as string])
+  }
+
   const { error } = await supabase
     .from('documents')
     .delete()

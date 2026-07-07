@@ -24,7 +24,7 @@ export default async function ContextPage() {
       .order('created_at'),
     supabase
       .from('documents')
-      .select('id, context_base_id, source_type, title, source_url, status, created_at')
+      .select('id, context_base_id, source_type, title, source_url, status, created_at, meta')
       .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false }),
   ])

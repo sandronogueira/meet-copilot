@@ -3,7 +3,10 @@
 import { useRef, useState, useTransition } from 'react'
 import {
   createBaseAction,
+  updateBaseAction,
+  deleteBaseAction,
   addDocumentAction,
+  updateTextDocumentAction,
   deleteDocumentAction,
   uploadFileDocumentAction,
 } from './actions'
@@ -18,6 +21,7 @@ export interface BaseDoc {
   source_url: string | null
   status: string
   created_at: string
+  meta?: { raw_text?: string } | null
 }
 
 export interface BaseWithDocs {
@@ -61,7 +65,40 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
   const [docFile, setDocFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // edição/exclusão da base selecionada
+  const [editingBase, setEditingBase] = useState(false)
+  const [editBaseName, setEditBaseName] = useState('')
+  const [editBaseDescription, setEditBaseDescription] = useState('')
+  const [confirmDeleteBase, setConfirmDeleteBase] = useState(false)
+
+  // edição inline de documento de texto
+  const [editingDocId, setEditingDocId] = useState<string | null>(null)
+  const [editDocTitle, setEditDocTitle] = useState('')
+  const [editDocText, setEditDocText] = useState('')
+
   const selected = bases.find((b) => b.id === selectedId) ?? bases[0] ?? null
+
+  function pickBase(id: string) {
+    setSelectedId(id)
+    setEditingBase(false)
+    setConfirmDeleteBase(false)
+    setEditingDocId(null)
+    setError(null)
+  }
+
+  function startEditBase() {
+    if (!selected) return
+    setEditBaseName(selected.name)
+    setEditBaseDescription(selected.description ?? '')
+    setEditingBase(true)
+    setConfirmDeleteBase(false)
+  }
+
+  function startEditDoc(doc: BaseDoc) {
+    setEditingDocId(doc.id)
+    setEditDocTitle(doc.title)
+    setEditDocText(doc.meta?.raw_text ?? '')
+  }
 
   function run(action: () => Promise<{ error?: string }>, onOk?: () => void) {
     setError(null)
@@ -96,7 +133,7 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
               <button
                 key={base.id}
                 type="button"
-                onClick={() => setSelectedId(base.id)}
+                onClick={() => pickBase(base.id)}
                 className={`rounded-lg p-4 text-left transition-all flex flex-col gap-1 ${
                   on
                     ? 'border border-primary-fixed bg-surface-container-highest text-primary glow-active'
@@ -167,11 +204,107 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
           <div className="flex-1 w-full bg-[#111214] border border-white/10 rounded-xl p-6 md:p-8 relative">
             <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent rounded-xl pointer-events-none" />
             <div className="relative z-10">
-              <h3 className="font-headline-lg text-xl text-primary mb-1 font-semibold">{selected.name}</h3>
-              {selected.description ? (
-                <p className="text-on-surface-variant text-body-sm mb-5">{selected.description}</p>
+              {editingBase ? (
+                <div className="mb-5 space-y-3">
+                  <input
+                    value={editBaseName}
+                    onChange={(e) => setEditBaseName(e.target.value)}
+                    placeholder="Nome da base"
+                    className="w-full bg-surface-container-high border border-white/10 rounded-lg px-3 py-2 text-primary font-semibold focus:outline-none focus:border-primary-fixed"
+                  />
+                  <input
+                    value={editBaseDescription}
+                    onChange={(e) => setEditBaseDescription(e.target.value)}
+                    placeholder="Descrição (opcional)"
+                    className="w-full bg-surface-container-high border border-white/10 rounded-lg px-3 py-2 text-primary text-sm focus:outline-none focus:border-primary-fixed"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      disabled={pending || editBaseName.trim().length < 2}
+                      onClick={() =>
+                        run(
+                          () =>
+                            updateBaseAction({
+                              id: selected.id,
+                              name: editBaseName,
+                              description: editBaseDescription,
+                            }),
+                          () => setEditingBase(false),
+                        )
+                      }
+                      className="bg-surface-tint text-on-primary font-medium rounded-lg px-4 py-2 text-sm hover:shadow-[0_0_15px_rgba(0,221,221,0.3)] transition-all disabled:opacity-50"
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      onClick={() => setEditingBase(false)}
+                      className="px-4 py-2 text-sm text-on-surface-variant border border-white/10 rounded-lg hover:border-white/30"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <div className="mb-5" />
+                <>
+                  <div className="flex items-start justify-between gap-3 mb-1">
+                    <h3 className="font-headline-lg text-xl text-primary font-semibold min-w-0">
+                      {selected.name}
+                    </h3>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        title="Editar nome e descrição da base"
+                        onClick={startEditBase}
+                        className="material-symbols-outlined text-[18px] text-on-surface-variant hover:text-primary-fixed transition-colors p-1.5 rounded-md hover:bg-white/5"
+                      >
+                        edit
+                      </button>
+                      {confirmDeleteBase ? (
+                        <span className="flex items-center gap-1.5">
+                          <button
+                            disabled={pending}
+                            onClick={() =>
+                              run(
+                                () => deleteBaseAction(selected.id),
+                                () => {
+                                  setConfirmDeleteBase(false)
+                                  setSelectedId(null)
+                                },
+                              )
+                            }
+                            className="text-[12px] font-bold text-error border border-error/50 rounded-md px-2.5 py-1 hover:bg-error/10 transition-colors"
+                          >
+                            {pending ? 'Excluindo…' : 'Confirmar exclusão'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteBase(false)}
+                            className="text-[12px] text-on-surface-variant border border-white/10 rounded-md px-2.5 py-1 hover:border-white/30"
+                          >
+                            Cancelar
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          title="Excluir a base e todos os documentos dela"
+                          onClick={() => setConfirmDeleteBase(true)}
+                          className="material-symbols-outlined text-[18px] text-on-surface-variant hover:text-error transition-colors p-1.5 rounded-md hover:bg-white/5"
+                        >
+                          delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {confirmDeleteBase ? (
+                    <p className="text-error text-[12px] mb-3">
+                      Isso apaga a base &quot;{selected.name}&quot; e {selected.documents.length}{' '}
+                      documento{selected.documents.length === 1 ? '' : 's'} — sem volta.
+                    </p>
+                  ) : null}
+                  {selected.description ? (
+                    <p className="text-on-surface-variant text-body-sm mb-5">{selected.description}</p>
+                  ) : (
+                    <div className="mb-5" />
+                  )}
+                </>
               )}
 
               {/* Tabs */}
@@ -327,27 +460,80 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
-                  {selected.documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between pb-4 border-b border-white/5"
-                    >
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-sm font-medium text-primary truncate">{doc.title}</span>
-                        <span className="text-xs text-on-surface-variant font-mono mt-1">
-                          {TYPE_LABEL[doc.source_type] ?? doc.source_type} ·{' '}
-                          {STATUS_LABEL[doc.status] ?? doc.status}
-                        </span>
+                  {selected.documents.map((doc) =>
+                    editingDocId === doc.id ? (
+                      <div key={doc.id} className="pb-4 border-b border-white/5 space-y-3">
+                        <input
+                          value={editDocTitle}
+                          onChange={(e) => setEditDocTitle(e.target.value)}
+                          placeholder="Título"
+                          className="w-full bg-surface-container-high border border-white/10 rounded-lg px-4 py-2 text-primary text-sm focus:outline-none focus:border-primary-fixed"
+                        />
+                        <textarea
+                          value={editDocText}
+                          onChange={(e) => setEditDocText(e.target.value)}
+                          rows={5}
+                          className="w-full bg-surface-container-high border border-white/10 rounded-lg px-4 py-2 text-primary text-sm focus:outline-none focus:border-primary-fixed resize-none"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            disabled={pending || !editDocTitle || editDocText.length < 20}
+                            onClick={() =>
+                              run(
+                                () =>
+                                  updateTextDocumentAction({
+                                    id: doc.id,
+                                    title: editDocTitle,
+                                    text: editDocText,
+                                  }),
+                                () => setEditingDocId(null),
+                              )
+                            }
+                            className="bg-surface-tint text-on-primary font-medium rounded-lg px-4 py-1.5 text-sm hover:shadow-[0_0_15px_rgba(0,221,221,0.3)] transition-all disabled:opacity-50"
+                          >
+                            Salvar
+                          </button>
+                          <button
+                            onClick={() => setEditingDocId(null)}
+                            className="px-4 py-1.5 text-sm text-on-surface-variant border border-white/10 rounded-lg hover:border-white/30"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        disabled={pending}
-                        onClick={() => run(() => deleteDocumentAction(doc.id))}
-                        className="text-xs border border-white/10 rounded-md px-3 py-1.5 text-on-surface-variant hover:text-error hover:border-error/50 transition-colors shrink-0"
+                    ) : (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between pb-4 border-b border-white/5"
                       >
-                        Remover
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-sm font-medium text-primary truncate">{doc.title}</span>
+                          <span className="text-xs text-on-surface-variant font-mono mt-1">
+                            {TYPE_LABEL[doc.source_type] ?? doc.source_type} ·{' '}
+                            {STATUS_LABEL[doc.status] ?? doc.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {doc.source_type === 'text' ? (
+                            <button
+                              disabled={pending}
+                              onClick={() => startEditDoc(doc)}
+                              className="text-xs border border-white/10 rounded-md px-3 py-1.5 text-on-surface-variant hover:text-primary-fixed hover:border-primary-fixed/50 transition-colors"
+                            >
+                              Editar
+                            </button>
+                          ) : null}
+                          <button
+                            disabled={pending}
+                            onClick={() => run(() => deleteDocumentAction(doc.id))}
+                            className="text-xs border border-white/10 rounded-md px-3 py-1.5 text-on-surface-variant hover:text-error hover:border-error/50 transition-colors"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      </div>
+                    ),
+                  )}
                 </div>
               )}
             </div>
