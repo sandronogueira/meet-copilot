@@ -136,76 +136,73 @@ export function WarRoom({
     }
   }, [meetingId])
 
+  // Feed único estilo Claude extension: fala e insights intercalados na ordem
+  // em que acontecem, num scroll só. O rodapé (ações + pergunta) fica fixo.
+  const feed = useMemo(() => {
+    const items: Array<
+      | { kind: 'seg'; ts: number; key: string; seg: SegmentEvent }
+      | { kind: 'sug'; ts: number; key: string; sug: SuggestionEvent }
+    > = [
+      ...finals.map((s, i) => ({ kind: 'seg' as const, ts: s.ts, key: `s${s.seq ?? i}-${s.ts}`, seg: s })),
+      ...suggestions
+        .filter((s) => !dismissed.has(s.id))
+        .map((s) => ({ kind: 'sug' as const, ts: s.ts, key: s.id, sug: s })),
+    ]
+    return items.sort((a, b) => a.ts - b.ts)
+  }, [finals, suggestions, dismissed])
+
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: 'smooth' })
-  }, [finals, partial])
-
-  const visibleSuggestions = useMemo(
-    () => suggestions.filter((s) => !dismissed.has(s.id)).reverse(),
-    [suggestions, dismissed],
-  )
+  }, [feed, partial])
 
   const panel = (
     <aside
-      className={`relative flex flex-col bg-surface-container-lowest border-l border-white/10 ${
+      className={`relative flex h-full flex-col bg-surface-container-lowest border-l border-white/10 ${
         variant === 'panel' ? 'w-full' : 'w-full lg:w-[400px] shrink-0'
       }`}
     >
-      {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+      {/* Header fixo */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 shrink-0">
         <span className="material-symbols-outlined text-primary-fixed">psychiatry</span>
-        <h2 className="font-headline-lg text-lg text-primary flex-1">Meet Copilot</h2>
+        <h2 className="font-headline-lg text-lg text-primary flex-1">
+          Meet Copilot
+          {expertName ? (
+            <span className="text-on-surface-variant text-[12px] font-normal ml-2">· {expertName}</span>
+          ) : null}
+        </h2>
+        <span className="flex items-center gap-1.5 text-[11px] font-medium text-error">
+          <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse" /> Gravando
+        </span>
         <span className={`w-2 h-2 rounded-full ${connected ? 'bg-primary-fixed shadow-[0_0_8px_#00fbfb]' : 'bg-outline'}`} />
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {/* Live Transcription */}
-        <div className="px-4 pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase">Transcrição ao vivo</h3>
-            <span className="flex items-center gap-1.5 text-[11px] font-medium text-error">
-              <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse" /> Gravando
-            </span>
-          </div>
-          <div ref={feedRef} className="space-y-3 max-h-[38vh] overflow-y-auto pr-1">
-            {finals.length === 0 && !partial && (
-              <p className="text-on-surface-variant text-body-sm">Aguardando alguém falar na reunião…</p>
-            )}
-            {finals.map((seg, i) => (
-              <TranscriptLine key={seg.seq ?? `f${i}`} seg={seg} />
-            ))}
-            {partial && <TranscriptLine seg={partial} muted />}
-            {(finals.length > 0 || partial) && (
-              <div className="flex items-center gap-2 text-on-surface-variant text-body-sm pt-1">
-                <span className="material-symbols-outlined text-[18px] text-primary-fixed animate-pulse">graphic_eq</span>
-                Escutando…
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* AI Insights & Actions */}
-        <div className="px-4 pt-6 pb-4">
-          <h3 className="font-label-caps text-label-caps text-on-surface-variant uppercase mb-3">
-            Insights & Ações {expertName ? `· ${expertName}` : ''}
-          </h3>
-          {visibleSuggestions.length === 0 ? (
-            <p className="text-on-surface-variant text-body-sm">
-              O {expertName ?? 'copiloto'} vai destacar dores, objeções e próximos passos aqui
-              {baseName ? `, com base em "${baseName}"` : ''} conforme a conversa avança.
-            </p>
+      {/* Feed único (transcrição + insights em ordem cronológica) */}
+      <div ref={feedRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
+        {feed.length === 0 && !partial && (
+          <p className="text-on-surface-variant text-body-sm">
+            Aguardando alguém falar na reunião… O {expertName ?? 'copiloto'} vai destacar dores,
+            objeções e próximos passos aqui{baseName ? `, com base em "${baseName}"` : ''} conforme a
+            conversa avança.
+          </p>
+        )}
+        {feed.map((item) =>
+          item.kind === 'seg' ? (
+            <TranscriptLine key={item.key} seg={item.seg} />
           ) : (
-            <div className="space-y-3">
-              {visibleSuggestions.map((s) => (
-                <InsightCard
-                  key={s.id}
-                  sug={s}
-                  onDismiss={() => setDismissed((prev) => new Set(prev).add(s.id))}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+            <InsightCard
+              key={item.key}
+              sug={item.sug}
+              onDismiss={() => setDismissed((prev) => new Set(prev).add(item.sug.id))}
+            />
+          ),
+        )}
+        {partial && <TranscriptLine seg={partial} muted />}
+        {(feed.length > 0 || partial) && (
+          <div className="flex items-center gap-2 text-on-surface-variant text-body-sm pt-1">
+            <span className="material-symbols-outlined text-[18px] text-primary-fixed animate-pulse">graphic_eq</span>
+            Escutando…
+          </div>
+        )}
       </div>
 
       {/* Finalização + Ask */}
