@@ -18,6 +18,14 @@ export interface CopilotContext {
   contextText: string
 }
 
+/** Resumo de um clone para o seletor do painel. */
+export interface ExpertSummary {
+  id: string
+  name: string
+  tagline: string | null
+  category: string | null
+}
+
 /**
  * Persistência + tempo real do caminho quente.
  * - INSERTs usam service_role (quando configurado), escopados por parâmetros explícitos.
@@ -158,6 +166,56 @@ export class Persistence {
     }
 
     return { expertStyle, expertName, salesProfile: wsSettings.sales_profile ?? null, contextText }
+  }
+
+  /** Clones disponíveis para o workspace (globais + próprios) e qual está ativo. */
+  async listExperts(
+    workspaceId: string,
+  ): Promise<ModuleOutput<{ experts: ExpertSummary[]; activeId: string | null }>> {
+    if (!this.db) return err('DB_OFF', 'sem service key')
+    const [expertsResult, activeId] = await Promise.all([
+      this.db
+        .from('sales_experts')
+        .select('id, name, tagline, category')
+        .eq('status', 'active')
+        .or(`scope.eq.global,workspace_id.eq.${workspaceId}`)
+        .order('scope', { ascending: false })
+        .order('created_at'),
+      this.getActiveExpertId(workspaceId),
+    ])
+    if (expertsResult.error) return err('DB_LIST_EXPERTS', expertsResult.error.message)
+    return ok({ experts: (expertsResult.data ?? []) as ExpertSummary[], activeId })
+  }
+
+  private async getActiveExpertId(workspaceId: string): Promise<string | null> {
+    if (!this.db) return null
+    const { data } = await this.db.from('workspaces').select('settings').eq('id', workspaceId).single()
+    return ((data?.settings ?? {}) as { default_expert_id?: string }).default_expert_id ?? null
+  }
+
+  /** Troca o clone ativo do workspace (validando que ele é global ou do próprio tenant). */
+  async setActiveExpert(
+    workspaceId: string,
+    expertId: string,
+  ): Promise<ModuleOutput<{ id: string; name: string }>> {
+    if (!this.db) return err('DB_OFF', 'sem service key')
+    const { data: expert } = await this.db
+      .from('sales_experts')
+      .select('id, name, scope, workspace_id')
+      .eq('id', expertId)
+      .eq('status', 'active')
+      .single()
+    if (!expert || (expert.scope !== 'global' && expert.workspace_id !== workspaceId)) {
+      return err('EXPERT_NOT_FOUND', 'Clone não encontrado para este workspace')
+    }
+    const { data: ws } = await this.db.from('workspaces').select('settings').eq('id', workspaceId).single()
+    const settings = {
+      ...((ws?.settings ?? {}) as Record<string, unknown>),
+      default_expert_id: expertId,
+    }
+    const { error } = await this.db.from('workspaces').update({ settings }).eq('id', workspaceId)
+    if (error) return err('DB_SET_EXPERT', error.message)
+    return ok({ id: expert.id as string, name: expert.name as string })
   }
 
   /** Persiste uma sugestão gerada e publica no painel ao vivo. Retorna o id. */

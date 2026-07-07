@@ -27,6 +27,13 @@ const KIND: Record<SuggestionEvent['kind'], { label: string; icon: string; tag: 
   risk: { label: 'Atenção', icon: 'warning', tag: 'Risco' },
 }
 
+interface ExpertOption {
+  id: string
+  name: string
+  tagline: string | null
+  category: string | null
+}
+
 interface ReportData {
   summary: string
   decisions: string[]
@@ -78,9 +85,67 @@ export function WarRoom({
   const [proposalUrl, setProposalUrl] = useState<string | null>(null)
   const [finalizing, setFinalizing] = useState<'report' | 'proposal' | null>(null)
   const [finalizeError, setFinalizeError] = useState<string | null>(null)
+  const [activeExpert, setActiveExpert] = useState<{ id: string | null; name: string | null }>({
+    id: null,
+    name: expertName,
+  })
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [experts, setExperts] = useState<ExpertOption[] | null>(null)
+  const [expertBusy, setExpertBusy] = useState(false)
+  const [expertError, setExpertError] = useState<string | null>(null)
   const feedRef = useRef<HTMLDivElement>(null)
 
   const canFinalize = Boolean(engineUrl && controlToken)
+
+  function togglePicker() {
+    const opening = !pickerOpen
+    setPickerOpen(opening)
+    setExpertError(null)
+    if (opening && experts === null && canFinalize) {
+      void fetch(`${engineUrl}/experts?token=${encodeURIComponent(controlToken!)}`)
+        .then((r) => r.json())
+        .then((json: { ok: boolean; data?: { experts: ExpertOption[]; activeId: string | null } }) => {
+          if (!json.ok || !json.data) {
+            setExpertError('Não deu para carregar os clones. Tente de novo.')
+            return
+          }
+          setExperts(json.data.experts)
+          const activeId = json.data.activeId
+          if (activeId) {
+            const found = json.data.experts.find((e) => e.id === activeId)
+            setActiveExpert((prev) => ({ id: activeId, name: found?.name ?? prev.name }))
+          }
+        })
+        .catch(() => setExpertError('Não deu para carregar os clones. Tente de novo.'))
+    }
+  }
+
+  async function selectExpert(expert: ExpertOption) {
+    if (!canFinalize || expertBusy) return
+    if (expert.id === activeExpert.id) {
+      setPickerOpen(false)
+      return
+    }
+    setExpertBusy(true)
+    setExpertError(null)
+    try {
+      const res = await fetch(
+        `${engineUrl}/expert?token=${encodeURIComponent(controlToken!)}&expertId=${encodeURIComponent(expert.id)}`,
+        { method: 'POST' },
+      )
+      const json = (await res.json()) as { ok: boolean; error?: { message: string } }
+      if (!json.ok) {
+        setExpertError(json.error?.message ?? 'Falha ao trocar o clone')
+        return
+      }
+      setActiveExpert({ id: expert.id, name: expert.name })
+      setPickerOpen(false)
+    } catch (e) {
+      setExpertError(String(e))
+    } finally {
+      setExpertBusy(false)
+    }
+  }
 
   async function finalize(kind: 'report' | 'proposal') {
     if (!canFinalize || finalizing) return
@@ -130,6 +195,10 @@ export function WarRoom({
         const p = payload as { url?: string }
         if (p.url) setProposalUrl(p.url)
       })
+      .on('broadcast', { event: 'expert' }, ({ payload }) => {
+        const p = payload as { id?: string; name?: string }
+        if (p.name) setActiveExpert({ id: p.id ?? null, name: p.name })
+      })
       .subscribe((status) => setConnected(status === 'SUBSCRIBED'))
     return () => {
       void supabase.removeChannel(channel)
@@ -164,10 +233,19 @@ export function WarRoom({
       {/* Header fixo */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 shrink-0">
         <span className="material-symbols-outlined text-primary-fixed">psychiatry</span>
-        <h2 className="font-headline-lg text-lg text-primary flex-1">
-          Meet Copilot
-          {expertName ? (
-            <span className="text-on-surface-variant text-[12px] font-normal ml-2">· {expertName}</span>
+        <h2 className="font-headline-lg text-lg text-primary flex-1 min-w-0 flex items-center gap-2">
+          <span className="shrink-0">Meet Copilot</span>
+          {canFinalize ? (
+            <button
+              onClick={togglePicker}
+              title="Trocar o clone que está escutando a conversa"
+              className="flex items-center gap-0.5 min-w-0 text-[12px] font-normal text-on-surface-variant hover:text-primary-fixed transition-colors"
+            >
+              <span className="truncate">{activeExpert.name ?? 'Escolher clone'}</span>
+              <span className="material-symbols-outlined text-[16px] shrink-0">expand_more</span>
+            </button>
+          ) : activeExpert.name ? (
+            <span className="text-on-surface-variant text-[12px] font-normal truncate">· {activeExpert.name}</span>
           ) : null}
         </h2>
         <span className="flex items-center gap-1.5 text-[11px] font-medium text-error">
@@ -176,11 +254,79 @@ export function WarRoom({
         <span className={`w-2 h-2 rounded-full ${connected ? 'bg-primary-fixed shadow-[0_0_8px_#00fbfb]' : 'bg-outline'}`} />
       </div>
 
+      {/* Popup: trocar clone ativo */}
+      {pickerOpen ? (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setPickerOpen(false)} />
+          <div className="absolute top-[52px] left-3 right-3 z-30 bg-[#111214] border border-outline-variant rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.6)] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+              <p className="font-label-caps text-label-caps text-primary-fixed uppercase">Clone ativo</p>
+              <button
+                onClick={() => setPickerOpen(false)}
+                className="material-symbols-outlined text-on-surface-variant hover:text-primary text-[18px]"
+              >
+                close
+              </button>
+            </div>
+            <div className="max-h-[320px] overflow-y-auto p-2 space-y-1">
+              {experts === null && !expertError ? (
+                <p className="text-on-surface-variant text-body-sm px-3 py-4">Carregando clones…</p>
+              ) : (
+                (experts ?? []).map((e) => {
+                  const isActive = e.id === activeExpert.id || (!activeExpert.id && e.name === activeExpert.name)
+                  return (
+                    <button
+                      key={e.id}
+                      onClick={() => void selectExpert(e)}
+                      disabled={expertBusy}
+                      className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors disabled:opacity-50 ${
+                        isActive
+                          ? 'bg-primary-fixed/10 border-primary-fixed'
+                          : 'border-transparent hover:bg-white/5'
+                      }`}
+                    >
+                      <span
+                        className={`w-8 h-8 rounded-full grid place-items-center text-[13px] font-bold shrink-0 border ${
+                          isActive
+                            ? 'bg-primary-fixed/15 text-primary-fixed border-primary-fixed/40'
+                            : 'bg-surface-container-high text-on-surface-variant border-white/10'
+                        }`}
+                      >
+                        {initial(e.name)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={`block text-[13px] font-medium truncate ${isActive ? 'text-primary-fixed' : 'text-primary'}`}
+                        >
+                          {e.name}
+                        </span>
+                        {e.tagline ? (
+                          <span className="block text-[11px] text-on-surface-variant truncate">{e.tagline}</span>
+                        ) : null}
+                      </span>
+                      {isActive ? (
+                        <span className="material-symbols-outlined text-primary-fixed text-[18px] shrink-0">
+                          check_circle
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })
+              )}
+            </div>
+            {expertBusy ? (
+              <p className="text-on-surface-variant text-[12px] px-4 pb-3">Trocando o clone…</p>
+            ) : null}
+            {expertError ? <p className="text-error text-[12px] px-4 pb-3">{expertError}</p> : null}
+          </div>
+        </>
+      ) : null}
+
       {/* Feed único (transcrição + insights em ordem cronológica) */}
       <div ref={feedRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
         {feed.length === 0 && !partial && (
           <p className="text-on-surface-variant text-body-sm">
-            Aguardando alguém falar na reunião… O {expertName ?? 'copiloto'} vai destacar dores,
+            Aguardando alguém falar na reunião… O {activeExpert.name ?? 'copiloto'} vai destacar dores,
             objeções e próximos passos aqui{baseName ? `, com base em "${baseName}"` : ''} conforme a
             conversa avança.
           </p>

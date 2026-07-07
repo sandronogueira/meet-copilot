@@ -200,6 +200,47 @@ async function handleFinalize(
   json(res, 200, { ok: true, data: payload })
 }
 
+/**
+ * GET /experts | POST /expert?expertId= — ?token=<JWT meetingId+workspaceId>
+ * Lista os clones do workspace e troca o clone ativo NO MEIO da reunião:
+ * atualiza o workspace, recarrega o contexto da sessão em memória e avisa
+ * o painel via broadcast 'expert'.
+ */
+async function handleExperts(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!persistence.hasDb) {
+    json(res, 503, { ok: false, error: { code: 'DB_OFF', message: 'service key ausente no engine' } })
+    return
+  }
+  const url = new URL(req.url ?? '/', 'http://localhost')
+  const claims = await verifyToken(url.searchParams.get('token') ?? '')
+  if (!claims) {
+    json(res, 403, { ok: false, error: { code: 'TOKEN', message: 'token inválido' } })
+    return
+  }
+
+  if (req.method === 'GET') {
+    const result = await persistence.listExperts(claims.workspaceId)
+    json(res, result.ok ? 200 : 500, result)
+    return
+  }
+
+  const expertId = url.searchParams.get('expertId') ?? ''
+  if (!expertId) {
+    json(res, 400, { ok: false, error: { code: 'EXPERT_ID', message: 'expertId ausente' } })
+    return
+  }
+  const result = await persistence.setActiveExpert(claims.workspaceId, expertId)
+  if (!result.ok) {
+    json(res, 400, result)
+    return
+  }
+  // sessão ao vivo (se houver) passa a pensar como o clone novo já no próximo tick
+  await sessions.get(claims.meetingId)?.reloadContext()
+  await persistence.broadcastEvent(claims.meetingId, 'expert', result.data)
+  console.log(`[experts ${claims.meetingId}] clone ativo → ${result.data.name}`)
+  json(res, 200, result)
+}
+
 const server = createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' })
@@ -228,6 +269,25 @@ const server = createServer((req, res) => {
     if (req.method === 'POST') {
       void handleIngest(req, res).catch((e: unknown) => {
         console.error('[ingest] erro não tratado:', e)
+        if (!res.headersSent) json(res, 500, { ok: false })
+      })
+      return
+    }
+  }
+  const pathname = (req.url ?? '/').split('?')[0]
+  if (pathname === '/experts' || pathname === '/expert') {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'access-control-allow-origin': '*',
+        'access-control-allow-methods': 'GET, POST, OPTIONS',
+        'access-control-allow-headers': 'content-type',
+      })
+      res.end()
+      return
+    }
+    if ((pathname === '/experts' && req.method === 'GET') || (pathname === '/expert' && req.method === 'POST')) {
+      void handleExperts(req, res).catch((e: unknown) => {
+        console.error('[experts] erro não tratado:', e)
         if (!res.headersSent) json(res, 500, { ok: false })
       })
       return

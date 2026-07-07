@@ -90,6 +90,11 @@ export class Session {
     this.trigger.manualTick()
   }
 
+  /** Recarrega o contexto (clone/base) — usado na troca de clone no meio da reunião. */
+  async reloadContext(): Promise<void> {
+    this.context = await this.persistence.loadContext(this.claims.workspaceId, this.claims.meetingId)
+  }
+
   private async onTick(reason: TickReason): Promise<void> {
     this.buffer.markTicked()
     const window = this.buffer.window()
@@ -131,6 +136,10 @@ export class SessionManager {
     private readonly persistence: Persistence,
     private readonly pipeline: CopilotPipeline | null,
   ) {}
+
+  get(meetingId: string): Session | undefined {
+    return this.sessions.get(meetingId)
+  }
 
   open(claims: SessionClaims): Session {
     const existing = this.sessions.get(claims.meetingId)
