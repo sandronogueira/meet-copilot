@@ -45,14 +45,25 @@ el.start.addEventListener('click', async () => {
       return
     }
 
-    // Permissão do microfone precisa ser concedida AQUI (o offscreen não
-    // consegue exibir o prompt — sem isso a sua voz não é transcrita).
+    // Microfone: a permissão é da ORIGEM DA EXTENSÃO (não do meet.google.com),
+    // e o side panel não exibe o prompt — então checamos e, se faltar, abrimos
+    // uma página da extensão em aba normal, onde o prompt funciona.
+    let micOk = false
     try {
-      const mic = await navigator.mediaDevices.getUserMedia({ audio: true })
-      for (const t of mic.getTracks()) t.stop() // só queríamos a permissão
-    } catch (e) {
+      const st = await navigator.permissions.query({ name: 'microphone' })
+      micOk = st.state === 'granted'
+    } catch {}
+    if (!micOk) {
+      try {
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: true })
+        for (const t of mic.getTracks()) t.stop()
+        micOk = true
+      } catch {}
+    }
+    if (!micOk) {
+      chrome.tabs.create({ url: chrome.runtime.getURL('mic-permission.html') })
       setStatus(
-        'Preciso do seu microfone para transcrever a SUA voz. Clique no cadeado/ícone de permissões do painel e permita o microfone, depois tente de novo.',
+        'Abri uma aba para você PERMITIR o microfone da extensão. Permita lá, volte à aba do Meet e clique em Iniciar de novo.',
       )
       el.start.disabled = false
       return
