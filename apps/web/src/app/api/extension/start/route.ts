@@ -115,6 +115,7 @@ export async function POST(req: Request) {
   // panel token carrega os metadados do cabeçalho — o iframe não precisa de banco
   const panelToken = await new SignJWT({
     meetingId: meeting.id,
+    workspaceId,
     title,
     baseName,
     expertName: expert?.name ?? null,

@@ -27,6 +27,15 @@ const KIND: Record<SuggestionEvent['kind'], { label: string; icon: string; tag: 
   risk: { label: 'Atenção', icon: 'warning', tag: 'Risco' },
 }
 
+interface ReportData {
+  summary: string
+  decisions: string[]
+  actionItems: { descricao: string; responsavel: string | null; prazo: string | null }[]
+  redFlags: string[]
+  objections: string[]
+  nextSteps: string[]
+}
+
 interface Props {
   meetingId: string
   title: string
@@ -35,6 +44,9 @@ interface Props {
   baseName: string | null
   expertName: string | null
   variant?: 'session' | 'panel'
+  /** URL http(s) do meeting-engine + token de controle (report/proposal) */
+  engineUrl?: string | null
+  controlToken?: string | null
 }
 
 function hhmm(ts: number): string {
@@ -53,6 +65,8 @@ export function WarRoom({
   baseName,
   expertName,
   variant = 'session',
+  engineUrl,
+  controlToken,
 }: Props) {
   const [finals, setFinals] = useState<SegmentEvent[]>([])
   const [partial, setPartial] = useState<SegmentEvent | null>(null)
@@ -60,7 +74,39 @@ export function WarRoom({
   const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const [connected, setConnected] = useState(false)
   const [ask, setAsk] = useState('')
+  const [report, setReport] = useState<ReportData | null>(null)
+  const [proposalUrl, setProposalUrl] = useState<string | null>(null)
+  const [finalizing, setFinalizing] = useState<'report' | 'proposal' | null>(null)
+  const [finalizeError, setFinalizeError] = useState<string | null>(null)
   const feedRef = useRef<HTMLDivElement>(null)
+
+  const canFinalize = Boolean(engineUrl && controlToken)
+
+  async function finalize(kind: 'report' | 'proposal') {
+    if (!canFinalize || finalizing) return
+    setFinalizing(kind)
+    setFinalizeError(null)
+    try {
+      const res = await fetch(`${engineUrl}/${kind}?token=${encodeURIComponent(controlToken!)}`, {
+        method: 'POST',
+      })
+      const json = (await res.json()) as {
+        ok: boolean
+        data?: ReportData & { url?: string }
+        error?: { message: string }
+      }
+      if (!json.ok) {
+        setFinalizeError(json.error?.message ?? `Falha ao gerar ${kind === 'report' ? 'relatório' : 'proposta'}`)
+        return
+      }
+      if (kind === 'report') setReport(json.data as ReportData)
+      else if (json.data?.url) setProposalUrl(json.data.url)
+    } catch (e) {
+      setFinalizeError(String(e))
+    } finally {
+      setFinalizing(null)
+    }
+  }
 
   useEffect(() => {
     const supabase = supabaseBrowser()
@@ -76,6 +122,13 @@ export function WarRoom({
       .on('broadcast', { event: 'suggestion' }, ({ payload }) => {
         const s = payload as SuggestionEvent
         setSuggestions((prev) => (prev.some((p) => p.id === s.id) ? prev : [...prev.slice(-40), s]))
+      })
+      .on('broadcast', { event: 'report' }, ({ payload }) => {
+        setReport(payload as ReportData)
+      })
+      .on('broadcast', { event: 'proposal' }, ({ payload }) => {
+        const p = payload as { url?: string }
+        if (p.url) setProposalUrl(p.url)
       })
       .subscribe((status) => setConnected(status === 'SUBSCRIBED'))
     return () => {
@@ -94,7 +147,7 @@ export function WarRoom({
 
   const panel = (
     <aside
-      className={`flex flex-col bg-surface-container-lowest border-l border-white/10 ${
+      className={`relative flex flex-col bg-surface-container-lowest border-l border-white/10 ${
         variant === 'panel' ? 'w-full' : 'w-full lg:w-[400px] shrink-0'
       }`}
     >
@@ -155,8 +208,37 @@ export function WarRoom({
         </div>
       </div>
 
-      {/* Ask the copilot */}
-      <div className="border-t border-white/10 p-3">
+      {/* Finalização + Ask */}
+      <div className="border-t border-white/10 p-3 space-y-2">
+        {finalizeError ? <p className="text-error text-[12px]">{finalizeError}</p> : null}
+        {proposalUrl ? (
+          <a
+            href={proposalUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="block text-primary-fixed text-[13px] underline underline-offset-4"
+          >
+            ✦ Proposta pronta — clique para abrir
+          </a>
+        ) : null}
+        <div className="flex gap-2">
+          <button
+            onClick={() => finalize('report')}
+            disabled={!canFinalize || finalizing !== null}
+            title={canFinalize ? 'Gera o relatório da reunião até aqui' : 'Reinicie o copiloto para habilitar'}
+            className="flex-1 px-3 py-2 rounded-md border border-outline-variant text-on-surface text-[13px] font-medium hover:border-primary-fixed hover:text-primary-fixed transition-colors disabled:opacity-40"
+          >
+            {finalizing === 'report' ? 'Gerando…' : 'Finalizar com Relatório'}
+          </button>
+          <button
+            onClick={() => finalize('proposal')}
+            disabled={!canFinalize || finalizing !== null}
+            title={canFinalize ? 'Gera a proposta comercial desta reunião' : 'Reinicie o copiloto para habilitar'}
+            className="flex-1 px-3 py-2 rounded-md bg-primary-fixed text-on-primary-fixed text-[13px] font-bold hover:shadow-[0_0_15px_rgba(0,251,251,0.4)] transition-all disabled:opacity-40"
+          >
+            {finalizing === 'proposal' ? 'Gerando…' : 'Gerar Proposta'}
+          </button>
+        </div>
         <div className="flex items-center gap-2 bg-surface-container-high border border-white/10 rounded-full px-4 py-2">
           <input
             value={ask}
@@ -164,16 +246,19 @@ export function WarRoom({
             placeholder="Pergunte algo ao Copilot…"
             className="flex-1 bg-transparent text-primary placeholder-on-surface-variant focus:outline-none text-body-sm"
             disabled
-            title="Disponível quando a IA estiver ativa"
+            title="Em breve"
           />
           <button className="material-symbols-outlined text-on-surface-variant" disabled>
             send
           </button>
         </div>
-        <p className="text-center text-[11px] text-on-surface-variant mt-2 opacity-70">
+        <p className="text-center text-[11px] text-on-surface-variant opacity-70">
           A IA pode cometer erros. Confira as respostas.
         </p>
       </div>
+
+      {/* Overlay: relatório de finalização */}
+      {report ? <ReportOverlay report={report} onClose={() => setReport(null)} onProposal={() => finalize('proposal')} proposalUrl={proposalUrl} finalizing={finalizing !== null} /> : null}
     </aside>
   )
 
@@ -185,6 +270,95 @@ export function WarRoom({
     <div className="fixed inset-0 z-[60] flex bg-black">
       <MeetingStage title={title} code={meetingCode ?? null} status={initialStatus} speakers={speakers} />
       {panel}
+    </div>
+  )
+}
+
+function ReportOverlay({
+  report,
+  onClose,
+  onProposal,
+  proposalUrl,
+  finalizing,
+}: {
+  report: ReportData
+  onClose: () => void
+  onProposal: () => void
+  proposalUrl: string | null
+  finalizing: boolean
+}) {
+  const section = (title: string, items: string[]) =>
+    items.length > 0 ? (
+      <div>
+        <h4 className="font-label-caps text-label-caps text-primary-fixed uppercase mb-2">{title}</h4>
+        <ul className="space-y-1.5">
+          {items.map((item, i) => (
+            <li key={i} className="text-body-sm text-on-surface flex gap-2">
+              <span className="text-primary-fixed shrink-0">›</span> {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+    ) : null
+
+  return (
+    <div className="absolute inset-0 z-20 bg-surface-container-lowest/95 backdrop-blur-sm overflow-y-auto">
+      <div className="p-5 space-y-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-label-caps text-label-caps text-primary-fixed uppercase">Relatório da reunião</p>
+            <h3 className="font-headline-lg text-xl text-primary mt-1">Resumo executivo</h3>
+          </div>
+          <button onClick={onClose} className="material-symbols-outlined text-on-surface-variant hover:text-primary">
+            close
+          </button>
+        </div>
+
+        <p className="text-body-sm text-on-surface leading-relaxed">{report.summary}</p>
+
+        {section('Decisões', report.decisions)}
+
+        {report.actionItems.length > 0 ? (
+          <div>
+            <h4 className="font-label-caps text-label-caps text-primary-fixed uppercase mb-2">Ações</h4>
+            <ul className="space-y-2">
+              {report.actionItems.map((a, i) => (
+                <li key={i} className="text-body-sm text-on-surface bg-[#111214] border border-outline-variant rounded-lg px-3 py-2">
+                  {a.descricao}
+                  <span className="block text-[11px] text-on-surface-variant mt-0.5">
+                    {a.responsavel ? `Responsável: ${a.responsavel}` : ''} {a.prazo ? `· Prazo: ${a.prazo}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {section('Red flags', report.redFlags)}
+        {section('Objeções', report.objections)}
+        {section('Próximos passos', report.nextSteps)}
+
+        <div className="pt-2 pb-6 space-y-2">
+          {proposalUrl ? (
+            <a
+              href={proposalUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="block w-full text-center px-3 py-2.5 rounded-md bg-primary-fixed text-on-primary-fixed text-[13px] font-bold"
+            >
+              Abrir Proposta Comercial
+            </a>
+          ) : (
+            <button
+              onClick={onProposal}
+              disabled={finalizing}
+              className="w-full px-3 py-2.5 rounded-md bg-primary-fixed text-on-primary-fixed text-[13px] font-bold hover:shadow-[0_0_15px_rgba(0,251,251,0.4)] transition-all disabled:opacity-40"
+            >
+              {finalizing ? 'Gerando proposta…' : 'Gerar Proposta Comercial'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

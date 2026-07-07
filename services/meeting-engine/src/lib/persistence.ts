@@ -5,6 +5,7 @@ import {
   type ModuleOutput,
   type TranscriptSegmentInput,
   type GeneratedSuggestion,
+  type Report,
 } from '@meet-copilot/shared'
 import type { EngineConfig } from '../config'
 
@@ -202,6 +203,75 @@ export class Persistence {
       await ch.send({ type: 'broadcast', event: 'suggestion', payload: { ...payload, ts: Date.now() } })
     } catch (e) {
       console.error(`[realtime ${meetingId}] broadcast sugestão falhou:`, e)
+    }
+  }
+
+  get hasDb(): boolean {
+    return this.db !== null
+  }
+
+  /** Transcrição completa da reunião, formatada para prompt. */
+  async loadTranscript(meetingId: string): Promise<string> {
+    if (!this.db) return ''
+    const { data } = await this.db
+      .from('transcript_segments')
+      .select('speaker_label, text')
+      .eq('meeting_id', meetingId)
+      .order('seq')
+      .limit(2000)
+    return (data ?? []).map((s) => `${s.speaker_label ?? 'Participante'}: ${s.text}`).join('\n')
+  }
+
+  async saveReport(workspaceId: string, meetingId: string, report: Report): Promise<ModuleOutput<void>> {
+    if (!this.db) return ok(undefined)
+    const { error } = await this.db.from('reports').upsert(
+      {
+        workspace_id: workspaceId,
+        meeting_id: meetingId,
+        summary: report.summary,
+        decisions: report.decisions,
+        action_items: report.actionItems,
+        red_flags: report.redFlags,
+        objections: report.objections,
+        next_steps: report.nextSteps,
+      },
+      { onConflict: 'meeting_id' },
+    )
+    if (error) return err('DB_SAVE_REPORT', error.message)
+    return ok(undefined)
+  }
+
+  async insertProposal(
+    workspaceId: string,
+    meetingId: string,
+    slug: string,
+    title: string,
+    clientName: string | null,
+    content: unknown,
+  ): Promise<ModuleOutput<void>> {
+    if (!this.db) return err('DB_OFF', 'sem service key')
+    const { error } = await this.db.from('proposals').insert({
+      workspace_id: workspaceId,
+      meeting_id: meetingId,
+      slug,
+      title,
+      client_name: clientName,
+      status: 'published',
+      published_at: new Date().toISOString(),
+      content,
+    })
+    if (error) return err('DB_INSERT_PROPOSAL', error.message)
+    return ok(undefined)
+  }
+
+  /** Broadcast genérico no canal da reunião (report/proposal/etc). Fail-soft. */
+  async broadcastEvent(meetingId: string, event: string, payload: unknown): Promise<void> {
+    const ch = this.channelFor(meetingId)
+    if (!ch) return
+    try {
+      await ch.send({ type: 'broadcast', event, payload })
+    } catch (e) {
+      console.error(`[realtime ${meetingId}] broadcast ${event} falhou:`, e)
     }
   }
 

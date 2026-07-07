@@ -7,12 +7,18 @@ import { SessionManager, type SessionClaims } from './session/SessionManager'
 import { GroqWhisperProvider } from './stt/GroqWhisperProvider'
 import type { STTProvider } from './stt/STTProvider'
 import { CopilotPipeline } from './pipeline/CopilotPipeline'
+import { Finalizer } from './pipeline/Finalizer'
 
 const config = loadConfig()
 const persistence = new Persistence(config)
 
 const pipeline = config.ANTHROPIC_API_KEY ? new CopilotPipeline(config.ANTHROPIC_API_KEY) : null
 if (!pipeline) console.warn('[config] ANTHROPIC_API_KEY ausente — copiloto (sugestões) desativado')
+const finalizer = config.ANTHROPIC_API_KEY ? new Finalizer(config.ANTHROPIC_API_KEY) : null
+
+// Alucinações clássicas do Whisper em áudio silencioso (pt) — descartadas.
+const WHISPER_HALLUCINATIONS =
+  /legendas?\s+(pela\s+comunidade|adriana|por|amara)|amara\.org|obrigado por assistir|inscreva-se no canal|^\s*(tchau[,.!\s]*)+$|^\s*\.+\s*$/i
 
 const sessions = new SessionManager(persistence, pipeline)
 const wsSecret = new TextEncoder().encode(config.ENGINE_WS_SECRET)
@@ -99,6 +105,11 @@ async function handleIngest(req: IncomingMessage, res: ServerResponse): Promise<
     json(res, 200, { ok: true, data: { skipped: 'sem fala no chunk' } })
     return
   }
+  if (text.length < 120 && WHISPER_HALLUCINATIONS.test(text)) {
+    console.log(`[ingest ${claims.meetingId}] alucinação descartada: "${text.slice(0, 60)}"`)
+    json(res, 200, { ok: true, data: { skipped: 'alucinação de silêncio' } })
+    return
+  }
 
   const session = sessions.open(claims)
   await session.ingestSegment({
@@ -110,6 +121,83 @@ async function handleIngest(req: IncomingMessage, res: ServerResponse): Promise<
   })
 
   json(res, 200, { ok: true, data: { text } })
+}
+
+/**
+ * POST /report | /proposal ?token=<JWT meetingId+workspaceId>
+ * Fecha a reunião: gera o entregável a partir da transcrição persistida,
+ * grava no banco e transmite ao painel (broadcast 'report' | 'proposal').
+ */
+async function handleFinalize(
+  req: IncomingMessage,
+  res: ServerResponse,
+  kind: 'report' | 'proposal',
+): Promise<void> {
+  if (!finalizer) {
+    json(res, 503, { ok: false, error: { code: 'AI_OFF', message: 'ANTHROPIC_API_KEY ausente' } })
+    return
+  }
+  if (!persistence.hasDb) {
+    json(res, 503, { ok: false, error: { code: 'DB_OFF', message: 'service key ausente no engine' } })
+    return
+  }
+  const url = new URL(req.url ?? '/', 'http://localhost')
+  const claims = await verifyToken(url.searchParams.get('token') ?? '')
+  if (!claims) {
+    json(res, 403, { ok: false, error: { code: 'TOKEN', message: 'token inválido' } })
+    return
+  }
+
+  const transcript = await persistence.loadTranscript(claims.meetingId)
+  if (transcript.trim().length < 40) {
+    json(res, 400, {
+      ok: false,
+      error: { code: 'EMPTY', message: 'Ainda não há transcrição suficiente nesta reunião.' },
+    })
+    return
+  }
+
+  if (kind === 'report') {
+    const report = await finalizer.generateReport(transcript)
+    if (!report.ok) {
+      json(res, 502, report)
+      return
+    }
+    await persistence.saveReport(claims.workspaceId, claims.meetingId, report.data)
+    await persistence.broadcastEvent(claims.meetingId, 'report', report.data)
+    json(res, 200, { ok: true, data: report.data })
+    return
+  }
+
+  // proposal
+  const ctx = await persistence.loadContext(claims.workspaceId, claims.meetingId)
+  const proposal = await finalizer.generateProposal(transcript, ctx)
+  if (!proposal.ok) {
+    json(res, 502, proposal)
+    return
+  }
+  const slug = `${(proposal.data.clienteNome || 'proposta')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 30)}-${Math.random().toString(36).slice(2, 10)}`
+  const saved = await persistence.insertProposal(
+    claims.workspaceId,
+    claims.meetingId,
+    slug,
+    `Proposta — ${proposal.data.clienteNome || 'Cliente'}`,
+    proposal.data.clienteNome || null,
+    proposal.data,
+  )
+  if (!saved.ok) {
+    json(res, 500, saved)
+    return
+  }
+  const payload = { slug, url: `/p/${slug}` }
+  await persistence.broadcastEvent(claims.meetingId, 'proposal', payload)
+  json(res, 200, { ok: true, data: payload })
 }
 
 const server = createServer((req, res) => {
@@ -140,6 +228,29 @@ const server = createServer((req, res) => {
     if (req.method === 'POST') {
       void handleIngest(req, res).catch((e: unknown) => {
         console.error('[ingest] erro não tratado:', e)
+        if (!res.headersSent) json(res, 500, { ok: false })
+      })
+      return
+    }
+  }
+  const finalizeKind = req.url?.startsWith('/report')
+    ? 'report'
+    : req.url?.startsWith('/proposal')
+      ? 'proposal'
+      : null
+  if (finalizeKind) {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'access-control-allow-origin': '*',
+        'access-control-allow-methods': 'POST, OPTIONS',
+        'access-control-allow-headers': 'content-type',
+      })
+      res.end()
+      return
+    }
+    if (req.method === 'POST') {
+      void handleFinalize(req, res, finalizeKind).catch((e: unknown) => {
+        console.error(`[${finalizeKind}] erro não tratado:`, e)
         if (!res.headersSent) json(res, 500, { ok: false })
       })
       return

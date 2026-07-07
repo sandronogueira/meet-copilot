@@ -45,6 +45,19 @@ el.start.addEventListener('click', async () => {
       return
     }
 
+    // Permissão do microfone precisa ser concedida AQUI (o offscreen não
+    // consegue exibir o prompt — sem isso a sua voz não é transcrita).
+    try {
+      const mic = await navigator.mediaDevices.getUserMedia({ audio: true })
+      for (const t of mic.getTracks()) t.stop() // só queríamos a permissão
+    } catch (e) {
+      setStatus(
+        'Preciso do seu microfone para transcrever a SUA voz. Clique no cadeado/ícone de permissões do painel e permita o microfone, depois tente de novo.',
+      )
+      el.start.disabled = false
+      return
+    }
+
     const res = await fetch(`${appOrigin}/api/extension/start`, {
       method: 'POST',
       credentials: 'include',

@@ -33,6 +33,11 @@ export default async function PanelPage({
     return <PanelError msg="Token não corresponde a esta reunião" />
   }
 
+  const ws = process.env.ENGINE_WS_URL
+  const engineUrl = ws
+    ? ws.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/stream$/, '')
+    : null
+
   return (
     <WarRoom
       meetingId={id}
@@ -41,6 +46,8 @@ export default async function PanelPage({
       baseName={payload.baseName ?? null}
       expertName={payload.expertName ?? null}
       variant="panel"
+      engineUrl={engineUrl}
+      controlToken={ptoken}
     />
   )
 }
