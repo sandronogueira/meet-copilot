@@ -36,14 +36,23 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'START_CAPTURE') {
     ;(async () => {
       try {
-        // A aba concedida veio do clique no ícone (onClicked acima).
+        // Prioriza a ABA ATUAL (reunião em curso); usa a concedida pelo último
+        // clique no ícone como fallback. A autorização do Chrome é POR ABA.
         const { grantedTabId } = await chrome.storage.session.get('grantedTabId')
-        const targetTabId = grantedTabId ?? msg.tabId
-        if (targetTabId == null) {
-          throw new Error('Sem aba autorizada. Clique no ícone do Meet Copilot a partir da aba do Meet.')
+        let streamId = null
+        for (const tabId of [msg.tabId, grantedTabId].filter((t) => t != null)) {
+          try {
+            streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId })
+            break
+          } catch {
+            // tenta o próximo candidato
+          }
         }
-        // getMediaStreamId no service worker, logo após a invocação: activeTab válido.
-        const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId })
+        if (!streamId) {
+          throw new Error(
+            'Extension has not been invoked: clique no ícone do Meet Copilot NESTA aba da reunião para autorizar, e depois Iniciar de novo.',
+          )
+        }
         await ensureOffscreen()
         await chrome.runtime.sendMessage({
           target: 'offscreen',

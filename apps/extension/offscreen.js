@@ -4,7 +4,7 @@
 // envia ciclos COM VOZ (VAD por RMS) — silêncio não vira alucinação no Whisper.
 
 const CYCLE_MS = 15000
-const VOICE_RMS_THRESHOLD = 0.015 // pico de RMS mínimo para considerar que houve fala
+const VOICE_RMS_THRESHOLD = 0.008 // pico de RMS mínimo para considerar que houve fala
 
 let running = false
 let config = null
@@ -26,27 +26,36 @@ async function start({ streamId, ingestUrl, ingestToken }) {
   startedAt = Date.now()
   audioCtx = new AudioContext()
 
-  // áudio da aba do Meet (todos os outros participantes)
-  tabStream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId },
-    },
-  })
-
-  // IMPORTANTE: capturar a aba silencia o áudio dela para o usuário —
-  // reencaminhamos para a saída para ele continuar ouvindo a reunião.
-  audioCtx.createMediaStreamSource(tabStream).connect(audioCtx.destination)
-
-  // microfone (a voz do próprio usuário) — permissão já concedida pelo painel
+  // MICROFONE PRIMEIRO (a voz do usuário) — independente da trilha da aba.
+  // Se a aba falhar, o mic continua transcrevendo.
   try {
     micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
   } catch (e) {
-    console.warn('[mc] sem permissão de microfone — capturando só a aba', e)
+    console.warn('[mc] sem permissão de microfone', e)
+  }
+
+  // áudio da aba do Meet (todos os outros participantes) — fail-soft
+  try {
+    tabStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId },
+      },
+    })
+    // IMPORTANTE: capturar a aba silencia o áudio dela para o usuário —
+    // reencaminhamos para a saída para ele continuar ouvindo a reunião.
+    audioCtx.createMediaStreamSource(tabStream).connect(audioCtx.destination)
+  } catch (e) {
+    console.error('[mc] captura da aba falhou (seguindo só com mic):', e)
+  }
+
+  if (!micStream && !tabStream) {
+    console.error('[mc] nenhuma trilha disponível — captura abortada')
+    return
   }
 
   running = true
   cyclers = [
-    cycleRecorder(tabStream, 'tab'),
+    tabStream ? cycleRecorder(tabStream, 'tab') : null,
     micStream ? cycleRecorder(micStream, 'mic') : null,
   ].filter(Boolean)
 }
