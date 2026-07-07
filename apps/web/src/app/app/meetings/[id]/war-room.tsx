@@ -379,16 +379,40 @@ function TranscriptLine({ seg, muted }: { seg: SegmentEvent; muted?: boolean }) 
 
 function InsightCard({ sug, onDismiss }: { sug: SuggestionEvent; onDismiss: () => void }) {
   const meta = KIND[sug.kind]
+  // Perguntas são o coração do copiloto — destaque total na cor da marca.
+  const isQuestion = sug.kind === 'question'
   return (
-    <div className="bg-[#111214] border border-outline-variant rounded-xl p-4 relative">
+    <div
+      className={
+        isQuestion
+          ? 'bg-primary-fixed/10 border border-primary-fixed rounded-xl p-4 relative shadow-[0_0_18px_rgba(0,251,251,0.18)]'
+          : 'bg-[#111214] border border-outline-variant rounded-xl p-4 relative'
+      }
+    >
       <div className="flex items-start gap-3">
         <span className="material-symbols-outlined text-primary-fixed text-[22px] shrink-0">{meta.icon}</span>
         <div className="min-w-0 flex-1">
-          <h4 className="font-headline-lg text-[15px] text-primary mb-1">{meta.label}</h4>
-          <p className="text-body-sm text-on-surface leading-relaxed">{sug.content}</p>
+          <h4
+            className={`font-headline-lg text-[15px] mb-1 ${isQuestion ? 'text-primary-fixed font-bold' : 'text-primary'}`}
+          >
+            {meta.label}
+          </h4>
+          <p
+            className={`leading-relaxed ${
+              isQuestion ? 'text-primary text-[15px] font-medium' : 'text-body-sm text-on-surface'
+            }`}
+          >
+            {sug.content}
+          </p>
           {sug.rationale && <p className="text-[12px] text-on-surface-variant italic mt-1.5">{sug.rationale}</p>}
           <div className="flex items-center gap-2 mt-3">
-            <span className="px-2 py-0.5 rounded border border-primary-fixed/30 bg-primary-fixed/10 text-primary-fixed font-label-caps text-[10px]">
+            <span
+              className={`px-2 py-0.5 rounded font-label-caps text-[10px] ${
+                isQuestion
+                  ? 'bg-primary-fixed text-on-primary-fixed font-bold'
+                  : 'border border-primary-fixed/30 bg-primary-fixed/10 text-primary-fixed'
+              }`}
+            >
               {meta.tag}
             </span>
             <button
