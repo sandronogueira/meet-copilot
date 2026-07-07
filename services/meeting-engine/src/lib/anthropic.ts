@@ -44,15 +44,23 @@ export class Anthropic {
     // temperature é deprecado em alguns modelos (ex.: sonnet-5) — só envia quando pedido
     if (params.temperature !== undefined) body.temperature = params.temperature
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': this.apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    })
+    // Timeout OBRIGATÓRIO: um fetch pendurado travava o tick da sessão para sempre
+    // (a trava `ticking` nunca liberava) — sugestões morriam até o restart do engine.
+    let res: Response
+    try {
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30_000),
+      })
+    } catch (e) {
+      return err('ANTHROPIC_NET', e instanceof Error ? e.message : 'falha de rede/timeout')
+    }
 
     if (!res.ok) {
       const body = await res.text().catch(() => '')

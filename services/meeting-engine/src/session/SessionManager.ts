@@ -21,7 +21,8 @@ export class Session {
   private readonly trigger: TriggerEngine
   private context: CopilotContext | null = null
   private recentSuggestions: string[] = []
-  private ticking = false
+  /** timestamp do tick em andamento (null = livre). Watchdog libera após 90s. */
+  private tickingSince: number | null = null
 
   constructor(
     readonly claims: SessionClaims,
@@ -103,11 +104,18 @@ export class Session {
       console.log(`[session ${this.claims.meetingId}] tick(${reason}) — pipeline off (sem ANTHROPIC_API_KEY)`)
       return
     }
-    if (this.ticking) return // evita ticks concorrentes na mesma sessão
-    this.ticking = true
+    // evita ticks concorrentes; watchdog libera trava presa (tick > 90s = zumbi)
+    if (this.tickingSince !== null) {
+      if (Date.now() - this.tickingSince < 90_000) return
+      console.warn(`[session ${this.claims.meetingId}] watchdog: tick preso há >90s — liberando trava`)
+    }
+    this.tickingSince = Date.now()
     try {
       const ctx = this.context ?? { expertStyle: null, expertName: null, salesProfile: null, contextText: '' }
       const result = await this.pipeline.run(window, ctx, this.recentSuggestions)
+      console.log(
+        `[session ${this.claims.meetingId}] tick(${reason}): ${result.suggestions.length} sugestão(ões)`,
+      )
       for (const sug of result.suggestions) {
         this.recentSuggestions.push(sug.content)
         await this.persistence.insertSuggestion(this.claims.workspaceId, this.claims.meetingId, sug, {
@@ -120,7 +128,7 @@ export class Session {
     } catch (e) {
       console.error(`[session ${this.claims.meetingId}] pipeline erro (fail-soft):`, e)
     } finally {
-      this.ticking = false
+      this.tickingSince = null
     }
   }
 

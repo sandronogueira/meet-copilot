@@ -18,13 +18,14 @@ const DEFAULTS: TriggerConfig = {
 /**
  * Decide QUANDO gastar LLM. Determinístico, não-LLM (princípio do ecossistema):
  *  T1 fim de turno com >= N palavras novas · T2 timer de fallback · T3 manual.
- * Nunca dispara enquanto o próprio usuário (is_self) está falando.
+ * T1 prioriza a fala do prospect; T2 dispara com QUALQUER fala acumulada —
+ * inclusive quando só o vendedor fala (reunião de apresentação), senão o
+ * copiloto fica mudo justamente quando o usuário domina a conversa.
  */
 export class TriggerEngine {
   private cfg: TriggerConfig
   private lastTickAt = 0
   private pendingWords = 0
-  private selfSpeaking = false
   private timer: ReturnType<typeof setInterval>
 
   constructor(
@@ -36,7 +37,6 @@ export class TriggerEngine {
   }
 
   noteSegment(params: { turnEnded: boolean; wordsSinceLastTick: number; isSelf: boolean }): void {
-    this.selfSpeaking = params.isSelf
     this.pendingWords = params.wordsSinceLastTick
 
     if (
@@ -59,9 +59,11 @@ export class TriggerEngine {
   }
 
   private checkTimer(): void {
+    // Sem exigir !selfSpeaking: com captura em chunks de ~15s, o "último a falar"
+    // é quase sempre o usuário quando ele domina a conversa — e o timer ficava
+    // eternamente bloqueado, sem gerar nenhuma sugestão na reunião inteira.
     if (
       this.pendingWords > 0 &&
-      !this.selfSpeaking &&
       Date.now() - this.lastTickAt >= this.cfg.maxIntervalMs &&
       this.cooldownOk()
     ) {

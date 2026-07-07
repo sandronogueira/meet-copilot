@@ -93,6 +93,9 @@ export function WarRoom({
   const [experts, setExperts] = useState<ExpertOption[] | null>(null)
   const [expertBusy, setExpertBusy] = useState(false)
   const [expertError, setExpertError] = useState<string | null>(null)
+  // Modo discreto: esconde transcrição/insights ao compartilhar a tela —
+  // o cliente não vê que uma IA está soprando as perguntas.
+  const [discreet, setDiscreet] = useState(false)
   const feedRef = useRef<HTMLDivElement>(null)
 
   const canFinalize = Boolean(engineUrl && controlToken)
@@ -224,6 +227,38 @@ export function WarRoom({
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight, behavior: 'smooth' })
   }, [feed, partial])
 
+  // MODO DISCRETO: nada de transcrição, insights ou botões de IA na tela —
+  // visual neutro de "anotações" enquanto a captura segue rodando por trás.
+  if (discreet) {
+    const neutral = (
+      <aside
+        className={`relative flex h-full flex-col bg-surface-container-lowest border-l border-white/10 ${
+          variant === 'panel' ? 'w-full' : 'w-full lg:w-[400px] shrink-0'
+        }`}
+      >
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 shrink-0">
+          <span className="material-symbols-outlined text-on-surface-variant text-[20px]">edit_note</span>
+          <h2 className="text-[15px] font-medium text-on-surface-variant flex-1">Anotações</h2>
+          <button
+            onClick={() => setDiscreet(false)}
+            title="Mostrar o painel do copiloto"
+            className="material-symbols-outlined text-[20px] text-on-surface-variant/50 hover:text-primary-fixed transition-colors"
+          >
+            visibility
+          </button>
+        </div>
+        <div className="flex-1" />
+      </aside>
+    )
+    if (variant === 'panel') return <div className="h-[100dvh]">{neutral}</div>
+    return (
+      <div className="fixed inset-0 z-[60] flex bg-black">
+        <main className="hidden lg:flex flex-1 bg-[#0b0d0e]" />
+        {neutral}
+      </div>
+    )
+  }
+
   const panel = (
     <aside
       className={`relative flex h-full flex-col bg-surface-container-lowest border-l border-white/10 ${
@@ -248,6 +283,16 @@ export function WarRoom({
             <span className="text-on-surface-variant text-[12px] font-normal truncate">· {activeExpert.name}</span>
           ) : null}
         </h2>
+        <button
+          onClick={() => {
+            setDiscreet(true)
+            setPickerOpen(false)
+          }}
+          title="Modo discreto — esconde o painel ao compartilhar a tela (a captura continua)"
+          className="material-symbols-outlined text-[20px] text-on-surface-variant hover:text-primary-fixed transition-colors"
+        >
+          visibility_off
+        </button>
         <span className="flex items-center gap-1.5 text-[11px] font-medium text-error">
           <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse" /> Gravando
         </span>
