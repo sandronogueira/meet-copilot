@@ -9,13 +9,13 @@ async function ask() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     for (const t of stream.getTracks()) t.stop()
-    status.textContent = '✓ Pronto! Pode fechar esta aba, voltar à reunião e clicar em Iniciar.'
+    status.textContent = 'Pronto! Pode fechar esta aba, voltar à reunião e clicar em Iniciar.'
     status.className = 'ok'
     btn.textContent = 'Permissão concedida'
     btn.disabled = true
   } catch (e) {
     status.textContent =
-      'Permissão negada. Clique no ícone 🎙️/cadeado na barra de endereço, escolha Permitir e tente de novo.'
+      'Permissão negada. Clique no ícone de microfone ou cadeado na barra de endereço, escolha Permitir e tente de novo.'
     status.className = 'err'
   }
 }

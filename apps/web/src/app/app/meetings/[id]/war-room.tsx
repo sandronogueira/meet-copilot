@@ -218,7 +218,7 @@ export function WarRoom({
             rel="noreferrer"
             className="block text-primary-fixed text-[13px] underline underline-offset-4"
           >
-            ✦ Proposta pronta — clique para abrir
+            Proposta pronta — clique para abrir
           </a>
         ) : null}
         <div className="flex gap-2">
