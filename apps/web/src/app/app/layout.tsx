@@ -39,6 +39,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <a href="/app" style={{ color: 'var(--fg-dim)' }}>
             Reuniões
           </a>
+          <a href="/app/usage" style={{ color: 'var(--fg-dim)' }}>
+            Consumo
+          </a>
           <a href="/app/context" style={{ color: 'var(--fg-dim)' }}>
             Bases de conhecimento
           </a>
@@ -47,6 +50,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </a>
           <a href="/app/profile" style={{ color: 'var(--fg-dim)' }}>
             Perfil
+          </a>
+          <a href="/app/install" style={{ color: 'var(--fg-dim)' }}>
+            Instalar extensão
           </a>
           {isSuperadmin(user.email) ? (
             <a href="/backoffice" style={{ color: 'var(--fg-dim)' }}>

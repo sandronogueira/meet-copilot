@@ -26,3 +26,16 @@ No console do side panel:
 
 - `GROQ_API_KEY` no meeting-engine (senão `/ingest` responde 503)
 - `ENGINE_WS_URL/SECRET` na Vercel (o `/api/extension/start` deriva a URL de ingest)
+
+## Distribuição para testers (zip estático — D7)
+
+Enquanto não existe conta developer na Chrome Web Store, a extensão é distribuída
+como zip estático em `apps/web/public/downloads/meet-copilot-extension.zip`, baixado
+pela página `/app/install`. **Regenerar o zip a cada mudança nesta pasta:**
+
+```bash
+cd apps/extension
+zip -r ../web/public/downloads/meet-copilot-extension.zip . -x '.*' -x '__MACOSX*' -x '*.DS_Store'
+```
+
+O zip é commitado — não é gerado em build/deploy.

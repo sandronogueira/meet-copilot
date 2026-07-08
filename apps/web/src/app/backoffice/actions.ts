@@ -77,6 +77,54 @@ export async function createTesterAction(
   return { password }
 }
 
+const inviteTesterSchema = z.object({
+  fullName: z.string().min(2, 'Informe o nome').max(80),
+  email: z.string().email('E-mail inválido'),
+})
+
+/**
+ * Convite por e-mail (D6): admin.auth.admin.inviteUserByEmail cria o user e dispara o
+ * e-mail nativo do Supabase (sem SMTP próprio); o trigger de signup provisiona
+ * workspace/profile no mesmo insert em auth.users, igual ao createTesterAction.
+ * O TEXTO do e-mail é personalizado no dashboard Supabase (Auth → Email Templates →
+ * Invite user) — fora do alcance desta action.
+ */
+export async function inviteTesterAction(
+  input: z.infer<typeof inviteTesterSchema>,
+): Promise<ActionResult> {
+  const { userId: actorUserId } = await requireSuperadmin()
+  const parsed = inviteTesterSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message }
+
+  const admin = supabaseAdmin()
+  if (!admin) return { error: 'Supabase admin indisponível (env ausente).' }
+
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
+    data: { full_name: parsed.data.fullName },
+    redirectTo: 'https://meet.2020agency.co/auth/callback',
+  })
+  if (error) return { error: error.message }
+
+  const newUserId = data.user?.id
+  if (!newUserId) return { error: 'Convite enviado, mas sem ID de usuário retornado.' }
+
+  const workspaceId = await targetWorkspaceId(admin, newUserId)
+  if (workspaceId) {
+    await admin.from('audit_logs').insert({
+      workspace_id: workspaceId,
+      actor_user_id: actorUserId,
+      actor_type: 'user',
+      action: 'backoffice.invite_tester',
+      target_type: 'user',
+      target_id: newUserId,
+      meta: { email: parsed.data.email, full_name: parsed.data.fullName },
+    })
+  }
+
+  revalidatePath('/backoffice')
+  return {}
+}
+
 const banSchema = z.object({
   userId: z.string().uuid(),
   ban: z.boolean(),

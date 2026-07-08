@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { createTesterAction, setUserBanAction, resetTesterPasswordAction } from './actions'
+import { createTesterAction, inviteTesterAction, setUserBanAction, resetTesterPasswordAction } from './actions'
 
 export interface PlatformStats {
   users: number
@@ -71,6 +71,8 @@ export function BackofficeView({ stats, users }: Props) {
   const [email, setEmail] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [created, setCreated] = useState<{ email: string; password: string } | null>(null)
+  const [invited, setInvited] = useState<string | null>(null)
+  const [formAction, setFormAction] = useState<'create' | 'invite' | null>(null)
   const [copied, setCopied] = useState(false)
 
   // confirmação em 2 cliques por linha (padrão do produto)
@@ -84,6 +86,7 @@ export function BackofficeView({ stats, users }: Props) {
   function submitCreateTester() {
     setFormError(null)
     setCreated(null)
+    setFormAction('create')
     startTransition(async () => {
       const r = await createTesterAction({ fullName, email })
       if (r.error) {
@@ -93,6 +96,24 @@ export function BackofficeView({ stats, users }: Props) {
         setFullName('')
         setEmail('')
       }
+      setFormAction(null)
+    })
+  }
+
+  function submitInviteTester() {
+    setFormError(null)
+    setInvited(null)
+    setFormAction('invite')
+    startTransition(async () => {
+      const r = await inviteTesterAction({ fullName, email })
+      if (r.error) {
+        setFormError(r.error)
+      } else {
+        setInvited(email)
+        setFullName('')
+        setEmail('')
+      }
+      setFormAction(null)
     })
   }
 
@@ -180,6 +201,18 @@ export function BackofficeView({ stats, users }: Props) {
               Fechar
             </button>
           </div>
+        ) : invited ? (
+          <div className="bg-surface-container-high border border-primary-fixed/40 rounded-lg p-4 space-y-3">
+            <p className="text-body-sm text-primary">
+              Convite enviado para <span className="font-mono">{invited}</span>
+            </p>
+            <button
+              onClick={() => setInvited(null)}
+              className="text-[12px] text-on-surface-variant border border-white/10 rounded-md px-3 py-1.5 hover:border-white/30"
+            >
+              Fechar
+            </button>
+          </div>
         ) : (
           <div className="flex flex-col md:flex-row gap-3">
             <div className="flex-1">
@@ -200,13 +233,20 @@ export function BackofficeView({ stats, users }: Props) {
                 className={field}
               />
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
               <button
                 disabled={pending || fullName.trim().length < 2 || !email.includes('@')}
                 onClick={submitCreateTester}
                 className="px-5 py-2.5 rounded-md bg-primary-fixed text-on-primary-fixed font-bold text-sm hover:shadow-[0_0_15px_rgba(0,251,251,0.4)] transition-all disabled:opacity-50 whitespace-nowrap"
               >
-                {pending ? 'Criando…' : 'Criar tester'}
+                {pending && formAction === 'create' ? 'Criando…' : 'Criar com senha'}
+              </button>
+              <button
+                disabled={pending || fullName.trim().length < 2 || !email.includes('@')}
+                onClick={submitInviteTester}
+                className="px-5 py-2.5 rounded-md border border-primary-fixed/50 text-primary-fixed font-bold text-sm hover:bg-primary-fixed/10 transition-all disabled:opacity-50 whitespace-nowrap"
+              >
+                {pending && formAction === 'invite' ? 'Enviando…' : 'Convidar por e-mail'}
               </button>
             </div>
           </div>
