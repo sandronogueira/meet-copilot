@@ -21,8 +21,21 @@ let appOrigin = DEFAULT_APP_ORIGIN
 // (sem isso a reunião ficava "in_call" para sempre e vazava memória no engine).
 let activeEngine = null
 
-chrome.storage.local.get('appOrigin').then(({ appOrigin: saved }) => {
+chrome.storage.local.get('appOrigin').then(async ({ appOrigin: saved }) => {
   if (saved) appOrigin = saved // override p/ dev: chrome.storage.local.set({appOrigin:'http://localhost:3000'})
+
+  // Reunião em andamento? O usuário pode FECHAR o painel (X) para liberar o
+  // espaço ao compartilhar a tela — a captura continua no offscreen. Ao
+  // reabrir pelo ícone, restauramos a sessão em vez de mostrar a home.
+  const { activeMeeting } = await chrome.storage.session.get('activeMeeting')
+  if (activeMeeting?.panelUrl) {
+    activeEngine = { url: activeMeeting.engineUrl, token: activeMeeting.token }
+    el.frame.src = activeMeeting.panelUrl
+    el.frame.style.display = 'block'
+    el.home.classList.add('hidden')
+    el.stop.classList.remove('hidden')
+    return
+  }
   void loadOptions()
 })
 
@@ -147,6 +160,9 @@ el.start.addEventListener('click', async () => {
 
     const { ingestUrl, ingestToken, panelUrl } = json.data
     activeEngine = { url: ingestUrl.replace(/\/ingest$/, ''), token: ingestToken }
+    await chrome.storage.session.set({
+      activeMeeting: { panelUrl, engineUrl: activeEngine.url, token: ingestToken },
+    })
 
     // A captura roda no service worker, que herda o activeTab do clique no ícone.
     const captura = await chrome.runtime.sendMessage({
@@ -188,6 +204,7 @@ el.stop.addEventListener('click', async () => {
     }).catch(() => {})
     activeEngine = null
   }
+  await chrome.storage.session.remove('activeMeeting')
   await chrome.runtime.sendMessage({ target: 'background', type: 'STOP_CAPTURE' })
   el.frame.src = 'about:blank'
   el.frame.style.display = 'none'

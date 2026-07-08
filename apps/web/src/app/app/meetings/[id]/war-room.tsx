@@ -288,7 +288,7 @@ export function WarRoom({
             setDiscreet(true)
             setPickerOpen(false)
           }}
-          title="Modo discreto — esconde o painel ao compartilhar a tela (a captura continua)"
+          title="Modo discreto — esconde transcrição e insights ao compartilhar a tela (a captura continua). Para liberar o espaço todo, feche o painel no X do Chrome: a gravação segue e você reabre pelo ícone da extensão."
           className="material-symbols-outlined text-[20px] text-on-surface-variant hover:text-primary-fixed transition-colors"
         >
           visibility_off
