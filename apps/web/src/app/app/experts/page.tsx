@@ -26,12 +26,18 @@ export default async function ExpertsPage() {
     supabase.from('workspaces').select('settings').eq('id', workspaceId).single(),
   ])
 
-  const settings = (workspace?.settings ?? {}) as { default_expert_id?: string }
+  const settings = (workspace?.settings ?? {}) as {
+    default_expert_id?: string
+    hidden_expert_ids?: string[]
+  }
+  const hidden = new Set(settings.hidden_expert_ids ?? [])
+  const visible = ((experts ?? []) as ExpertCard[]).filter((e) => !hidden.has(e.id))
 
   return (
     <ExpertsGallery
-      experts={(experts ?? []) as ExpertCard[]}
+      experts={visible}
       selectedId={settings.default_expert_id ?? null}
+      hiddenCount={hidden.size}
     />
   )
 }

@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { selectExpertAction, deleteCustomExpertAction } from './actions'
+import {
+  selectExpertAction,
+  deleteCustomExpertAction,
+  hideGlobalExpertAction,
+  restoreHiddenExpertsAction,
+} from './actions'
 
 export interface ExpertCard {
   id: string
@@ -24,9 +29,11 @@ const HIGHLIGHT = new Set(['Alta Performance', 'Seu Modelo'])
 export function ExpertsGallery({
   experts,
   selectedId,
+  hiddenCount = 0,
 }: {
   experts: ExpertCard[]
   selectedId: string | null
+  hiddenCount?: number
 }) {
   const [selected, setSelected] = useState<string | null>(selectedId)
   const [pending, startTransition] = useTransition()
@@ -45,15 +52,27 @@ export function ExpertsGallery({
     })
   }
 
-  function remove(id: string) {
+  // scope='workspace' → exclui de verdade · scope='global' → oculta (reversível)
+  function remove(expert: ExpertCard) {
     setError(null)
     startTransition(async () => {
-      const r = await deleteCustomExpertAction(id)
+      const r =
+        expert.scope === 'workspace'
+          ? await deleteCustomExpertAction(expert.id)
+          : await hideGlobalExpertAction(expert.id)
       if (r.error) setError(r.error)
       else {
         setConfirmDeleteId(null)
-        if (selected === id) setSelected(null)
+        if (selected === expert.id) setSelected(null)
       }
+    })
+  }
+
+  function restoreHidden() {
+    setError(null)
+    startTransition(async () => {
+      const r = await restoreHiddenExpertsAction()
+      if (r.error) setError(r.error)
     })
   }
 
@@ -130,35 +149,36 @@ export function ExpertsGallery({
                 </div>
               </button>
 
-              {/* Canto superior direito: seleção (globais) OU controles (próprios) */}
-              {own ? (
-                <div className="absolute top-4 right-4 flex items-center gap-1.5 z-10">
-                  {isSel ? (
-                    <span
-                      className="material-symbols-outlined text-primary-fixed text-[20px] mr-0.5"
-                      style={{ fontVariationSettings: "'FILL' 1" }}
+              {/* Canto superior direito: seleção + controles (editar só p/ próprios;
+                  excluir/ocultar para todos) */}
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 z-10">
+                {isSel ? (
+                  <span
+                    className="material-symbols-outlined text-primary-fixed text-[20px] mr-0.5"
+                    style={{ fontVariationSettings: "'FILL' 1" }}
+                  >
+                    check_circle
+                  </span>
+                ) : null}
+                {confirming ? (
+                  <>
+                    <button
+                      onClick={() => remove(expert)}
+                      disabled={pending}
+                      className="text-[11px] font-bold text-error border border-error/50 rounded-md px-2 py-1 hover:bg-error/10 transition-colors"
                     >
-                      check_circle
-                    </span>
-                  ) : null}
-                  {confirming ? (
-                    <>
-                      <button
-                        onClick={() => remove(expert.id)}
-                        disabled={pending}
-                        className="text-[11px] font-bold text-error border border-error/50 rounded-md px-2 py-1 hover:bg-error/10 transition-colors"
-                      >
-                        {pending ? 'Excluindo…' : 'Excluir'}
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="text-[11px] text-on-surface-variant border border-outline-variant rounded-md px-2 py-1 hover:border-white/30"
-                      >
-                        Não
-                      </button>
-                    </>
-                  ) : (
-                    <>
+                      {pending ? '…' : own ? 'Excluir' : 'Remover'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="text-[11px] text-on-surface-variant border border-outline-variant rounded-md px-2 py-1 hover:border-white/30"
+                    >
+                      Não
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {own ? (
                       <Link
                         href={`/app/experts/${expert.id}/edit`}
                         title="Editar este clone"
@@ -166,23 +186,17 @@ export function ExpertsGallery({
                       >
                         edit
                       </Link>
-                      <button
-                        onClick={() => setConfirmDeleteId(expert.id)}
-                        title="Excluir este clone"
-                        className="material-symbols-outlined text-[18px] text-on-surface-variant hover:text-error transition-colors p-1.5 rounded-md hover:bg-white/5"
-                      >
-                        delete
-                      </button>
-                    </>
-                  )}
-                </div>
-              ) : isSel ? (
-                <div className="absolute top-4 right-4 text-primary-fixed z-10 pointer-events-none">
-                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    check_circle
-                  </span>
-                </div>
-              ) : null}
+                    ) : null}
+                    <button
+                      onClick={() => setConfirmDeleteId(expert.id)}
+                      title={own ? 'Excluir este clone' : 'Remover da sua lista (reversível)'}
+                      className="material-symbols-outlined text-[18px] text-on-surface-variant hover:text-error transition-colors p-1.5 rounded-md hover:bg-white/5"
+                    >
+                      delete
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           )
         })}
@@ -208,6 +222,20 @@ export function ExpertsGallery({
           </div>
         </Link>
       </div>
+
+      {hiddenCount > 0 ? (
+        <p className="text-body-sm text-on-surface-variant mb-10">
+          {hiddenCount} clone{hiddenCount === 1 ? '' : 's'} nativo{hiddenCount === 1 ? '' : 's'} oculto
+          {hiddenCount === 1 ? '' : 's'}.{' '}
+          <button
+            onClick={restoreHidden}
+            disabled={pending}
+            className="text-primary-fixed underline underline-offset-4 hover:opacity-80 disabled:opacity-50"
+          >
+            Restaurar
+          </button>
+        </p>
+      ) : null}
     </div>
   )
 }

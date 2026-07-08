@@ -195,6 +195,49 @@ export async function updateCustomExpertAction(
   redirect('/app/experts')
 }
 
+/**
+ * Oculta um clone GLOBAL (nativo) da lista deste workspace. Não deleta a linha
+ * compartilhada — só guarda o id em settings.hidden_expert_ids. Reversível.
+ */
+export async function hideGlobalExpertAction(expertId: string): Promise<ActionResult> {
+  if (!z.uuid().safeParse(expertId).success) return { error: 'id inválido' }
+  const { supabase, workspaceId } = await ctx()
+
+  const { data: expert } = await supabase.from('sales_experts').select('scope').eq('id', expertId).single()
+  if (!expert || expert.scope !== 'global') return { error: 'Clone não encontrado' }
+
+  const { data: ws } = await supabase.from('workspaces').select('settings').eq('id', workspaceId).single()
+  const settings = (ws?.settings ?? {}) as Record<string, unknown> & {
+    hidden_expert_ids?: string[]
+    default_expert_id?: string
+  }
+  const hidden = new Set(settings.hidden_expert_ids ?? [])
+  hidden.add(expertId)
+  const next: Record<string, unknown> = { ...settings, hidden_expert_ids: [...hidden] }
+  if (settings.default_expert_id === expertId) delete next.default_expert_id
+
+  const { error } = await supabase.from('workspaces').update({ settings: next }).eq('id', workspaceId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/app/experts')
+  revalidatePath('/app')
+  return {}
+}
+
+/** Restaura todos os clones nativos ocultos deste workspace. */
+export async function restoreHiddenExpertsAction(): Promise<ActionResult> {
+  const { supabase, workspaceId } = await ctx()
+  const { data: ws } = await supabase.from('workspaces').select('settings').eq('id', workspaceId).single()
+  const { hidden_expert_ids: _drop, ...rest } = (ws?.settings ?? {}) as Record<string, unknown> & {
+    hidden_expert_ids?: string[]
+  }
+  const { error } = await supabase.from('workspaces').update({ settings: rest }).eq('id', workspaceId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/app/experts')
+  return {}
+}
+
 /** Exclui um clone do workspace. Se era o clone ativo, limpa a seleção. */
 export async function deleteCustomExpertAction(expertId: string): Promise<ActionResult> {
   if (!z.uuid().safeParse(expertId).success) return { error: 'id inválido' }

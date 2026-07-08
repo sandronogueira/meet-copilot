@@ -191,7 +191,7 @@ export class Persistence {
     workspaceId: string,
   ): Promise<ModuleOutput<{ experts: ExpertSummary[]; activeId: string | null }>> {
     if (!this.db) return err('DB_OFF', 'sem service key')
-    const [expertsResult, activeId] = await Promise.all([
+    const [expertsResult, wsSettings] = await Promise.all([
       this.db
         .from('sales_experts')
         .select('id, name, tagline, category')
@@ -199,16 +199,21 @@ export class Persistence {
         .or(`scope.eq.global,workspace_id.eq.${workspaceId}`)
         .order('scope', { ascending: false })
         .order('created_at'),
-      this.getActiveExpertId(workspaceId),
+      this.getWorkspaceSettings(workspaceId),
     ])
     if (expertsResult.error) return err('DB_LIST_EXPERTS', expertsResult.error.message)
-    return ok({ experts: (expertsResult.data ?? []) as ExpertSummary[], activeId })
+    // respeita clones nativos ocultos por este workspace
+    const hidden = new Set(wsSettings.hidden_expert_ids ?? [])
+    const experts = ((expertsResult.data ?? []) as ExpertSummary[]).filter((e) => !hidden.has(e.id))
+    return ok({ experts, activeId: wsSettings.default_expert_id ?? null })
   }
 
-  private async getActiveExpertId(workspaceId: string): Promise<string | null> {
-    if (!this.db) return null
+  private async getWorkspaceSettings(
+    workspaceId: string,
+  ): Promise<{ default_expert_id?: string; hidden_expert_ids?: string[] }> {
+    if (!this.db) return {}
     const { data } = await this.db.from('workspaces').select('settings').eq('id', workspaceId).single()
-    return ((data?.settings ?? {}) as { default_expert_id?: string }).default_expert_id ?? null
+    return (data?.settings ?? {}) as { default_expert_id?: string; hidden_expert_ids?: string[] }
   }
 
   /** Troca o clone ativo do workspace (validando que ele é global ou do próprio tenant). */

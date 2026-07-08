@@ -39,13 +39,14 @@ export async function GET() {
     supabase.from('workspaces').select('settings').eq('id', workspaceId).single(),
   ])
 
-  const settings = (ws?.settings ?? {}) as { default_expert_id?: string }
+  const settings = (ws?.settings ?? {}) as { default_expert_id?: string; hidden_expert_ids?: string[] }
+  const hidden = new Set(settings.hidden_expert_ids ?? [])
 
   return NextResponse.json({
     ok: true,
     data: {
       bases: bases ?? [],
-      experts: experts ?? [],
+      experts: (experts ?? []).filter((e) => !hidden.has(e.id)),
       activeExpertId: settings.default_expert_id ?? null,
       defaultBaseId: (bases ?? []).find((b) => b.is_default)?.id ?? null,
     },
