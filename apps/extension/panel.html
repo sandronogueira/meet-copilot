@@ -29,7 +29,37 @@
         flex-shrink: 0;
       }
       .brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.9rem; }
-      .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+      .dot {
+        width: 1.35em;
+        height: 1.35em;
+        flex-shrink: 0;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Ccircle cx='256' cy='256' r='238' fill='%2300fbfb' stroke='%2304141a' stroke-width='20'/%3E%3Crect x='118' y='182' width='182' height='148' rx='34' fill='%23eef6f7' stroke='%2304141a' stroke-width='18'/%3E%3Cpath d='M312 224 L392 184 V328 L312 288 Z' fill='%23eef6f7' stroke='%2304141a' stroke-width='18' stroke-linejoin='round'/%3E%3C/svg%3E")
+          center / contain no-repeat;
+        filter: drop-shadow(0 0 5px rgba(45, 225, 253, 0.5));
+      }
+      /* Lapela na borda esquerda do painel: recolhe (fecha) o painel para
+         liberar a tela ao compartilhar. Reabra pelo ícone da extensão. */
+      #collapse-tab {
+        position: fixed;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 20;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 68px;
+        border: 1px solid var(--line);
+        border-left: 0;
+        border-radius: 0 10px 10px 0;
+        background: #0b1116;
+        color: var(--accent);
+        cursor: pointer;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.4);
+      }
+      #collapse-tab.on { display: flex; }
+      #collapse-tab:hover { background: #12202a; }
       button {
         font: inherit;
         font-size: 0.8rem;
@@ -101,7 +131,7 @@
         background: #05080a;
         color: var(--fg);
         resize: vertical;
-        min-height: 4.4rem;
+        min-height: 17rem;
       }
       #setup textarea:focus { outline: none; border-color: var(--accent); }
       #setup textarea::placeholder { color: var(--dim); }
@@ -126,6 +156,12 @@
     </style>
   </head>
   <body>
+    <div id="collapse-tab" title="Recolher o painel (a gravação continua). Reabra pelo ícone da extensão.">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 6 9 12 15 18" />
+      </svg>
+    </div>
+
     <header>
       <span class="brand"><span class="dot"></span> Meet Copilot</span>
       <span style="display: flex; gap: 0.5rem">

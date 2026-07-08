@@ -10,6 +10,7 @@ const el = {
   start: document.getElementById('btn-start'),
   stop: document.getElementById('btn-stop'),
   collapse: document.getElementById('btn-collapse'),
+  collapseTab: document.getElementById('collapse-tab'),
   login: document.getElementById('btn-login'),
   status: document.getElementById('status'),
   setup: document.getElementById('setup'),
@@ -20,7 +21,16 @@ const el = {
 
 // Recolher: fecha o side panel inteiro (libera o espaço ao compartilhar a
 // tela). A captura segue no offscreen; reabrir pelo ícone restaura a reunião.
+// Dois gatilhos: botão no header e a lapela na borda esquerda do painel.
 el.collapse.addEventListener('click', () => window.close())
+el.collapseTab.addEventListener('click', () => window.close())
+
+// Mostra/esconde os controles da reunião ativa (Encerrar, Recolher, lapela).
+function showMeetingControls(on) {
+  el.stop.classList.toggle('hidden', !on)
+  el.collapse.classList.toggle('hidden', !on)
+  el.collapseTab.classList.toggle('on', on)
+}
 
 let appOrigin = DEFAULT_APP_ORIGIN
 // Engine da reunião ativa — o Encerrar avisa o servidor para liberar a sessão
@@ -39,8 +49,7 @@ chrome.storage.local.get('appOrigin').then(async ({ appOrigin: saved }) => {
     el.frame.src = activeMeeting.panelUrl
     el.frame.style.display = 'block'
     el.home.classList.add('hidden')
-    el.stop.classList.remove('hidden')
-    el.collapse.classList.remove('hidden')
+    showMeetingControls(true)
     return
   }
   void loadOptions()
@@ -197,8 +206,7 @@ el.start.addEventListener('click', async () => {
     el.frame.src = panelUrl
     el.frame.style.display = 'block'
     el.home.classList.add('hidden')
-    el.stop.classList.remove('hidden')
-    el.collapse.classList.remove('hidden')
+    showMeetingControls(true)
   } catch (e) {
     setStatus(`Erro: ${String(e)}`)
     el.start.disabled = false
@@ -219,8 +227,7 @@ el.stop.addEventListener('click', async () => {
   el.frame.src = 'about:blank'
   el.frame.style.display = 'none'
   el.home.classList.remove('hidden')
-  el.stop.classList.add('hidden')
-  el.collapse.classList.add('hidden')
+  showMeetingControls(false)
   el.start.disabled = false
   setStatus('Copiloto encerrado.')
 })
