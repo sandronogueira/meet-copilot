@@ -44,6 +44,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <a href="/app/experts" style={{ color: 'var(--fg-dim)' }}>
             Especialistas
           </a>
+          <a href="/app/profile" style={{ color: 'var(--fg-dim)' }}>
+            Perfil
+          </a>
         </nav>
         <form action={signOutAction}>
           <button className="btn btn-ghost btn-inline" type="submit" style={{ padding: '0.4rem 0.9rem' }}>
