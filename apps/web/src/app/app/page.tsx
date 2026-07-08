@@ -85,25 +85,41 @@ export default async function DashboardPage() {
             const duration = fmtDuration(m.duration_ms)
             const live = m.status === 'in_call'
             return (
-              <a
+              // stretched link: a linha toda abre o registro; as tags de
+              // Proposta/Resumo têm destino próprio por cima (sem <a> aninhado)
+              <div
                 key={m.id}
-                href={`/app/meetings/${m.id}/registro`}
-                title="Abrir o registro da sessão (transcrição, relatório, proposta)"
                 style={{
+                  position: 'relative',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   gap: '1rem',
                   padding: '1rem 1.4rem',
                   borderBottom: '1px solid var(--line)',
-                  color: 'var(--fg)',
-                  textDecoration: 'none',
                 }}
               >
-                <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <a
+                  href={`/app/meetings/${m.id}/registro`}
+                  aria-label={`Abrir ${m.title ?? 'reunião'}`}
+                  title="Abrir o registro da sessão (transcrição, relatório, proposta)"
+                  style={{ position: 'absolute', inset: 0, zIndex: 0 }}
+                />
+                <div
+                  style={{
+                    position: 'relative',
+                    zIndex: 1,
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    pointerEvents: 'none', // deixa o clique passar para o stretched link…
+                  }}
+                >
                   <span
                     style={{
                       fontWeight: 500,
+                      color: 'var(--fg)',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -114,11 +130,22 @@ export default async function DashboardPage() {
                   <span style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
                     {live ? <Tag variant="live">ao vivo</Tag> : null}
                     {duration ? <Tag variant="neutral">{duration}</Tag> : null}
-                    {m.has_proposal ? <Tag variant="accent">Proposta comercial</Tag> : null}
-                    {m.has_report ? <Tag variant="soft">Resumo</Tag> : null}
+                    {m.has_proposal && m.proposal_slug ? (
+                      <Tag variant="accent" href={`/p/${m.proposal_slug}`} newTab title="Abrir a proposta pública">
+                        Proposta comercial
+                      </Tag>
+                    ) : null}
+                    {m.has_report ? (
+                      <Tag variant="soft" href={`/app/meetings/${m.id}/registro#resumo`} title="Ver o resumo">
+                        Resumo
+                      </Tag>
+                    ) : null}
                   </span>
                 </div>
-                <span className="mono muted" style={{ fontSize: '0.75rem', flexShrink: 0 }}>
+                <span
+                  className="mono muted"
+                  style={{ position: 'relative', zIndex: 1, fontSize: '0.75rem', flexShrink: 0, pointerEvents: 'none' }}
+                >
                   {new Date(m.created_at).toLocaleString('pt-BR', {
                     day: '2-digit',
                     month: '2-digit',
@@ -126,7 +153,7 @@ export default async function DashboardPage() {
                     minute: '2-digit',
                   })}
                 </span>
-              </a>
+              </div>
             )
           })}
         </div>
@@ -142,9 +169,15 @@ export default async function DashboardPage() {
 function Tag({
   children,
   variant,
+  href,
+  newTab,
+  title,
 }: {
   children: React.ReactNode
   variant: 'accent' | 'soft' | 'neutral' | 'live'
+  href?: string
+  newTab?: boolean
+  title?: string
 }) {
   const styles: Record<typeof variant, React.CSSProperties> = {
     // proposta: cor da marca, cheia — é o entregável mais valioso
@@ -156,32 +189,43 @@ function Tag({
     // ao vivo: vermelho
     live: { background: 'rgba(255,90,90,0.12)', color: '#ff7a7a', border: '1px solid rgba(255,90,90,0.4)' },
   }
+  const base: React.CSSProperties = {
+    ...styles[variant],
+    fontSize: '0.68rem',
+    fontWeight: 600,
+    letterSpacing: '0.02em',
+    padding: '0.15rem 0.55rem',
+    borderRadius: '999px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.3rem',
+    whiteSpace: 'nowrap',
+    textDecoration: 'none',
+  }
+  const dot =
+    variant === 'live' ? (
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ff5a5a', display: 'inline-block' }} />
+    ) : null
+
+  if (href) {
+    // tag clicável: reativa pointer-events (o container os desliga) e fica
+    // por cima do stretched link para receber o próprio clique
+    return (
+      <a
+        href={href}
+        title={title}
+        target={newTab ? '_blank' : undefined}
+        rel={newTab ? 'noreferrer' : undefined}
+        style={{ ...base, pointerEvents: 'auto', cursor: 'pointer', position: 'relative', zIndex: 2 }}
+      >
+        {dot}
+        {children}
+      </a>
+    )
+  }
   return (
-    <span
-      style={{
-        ...styles[variant],
-        fontSize: '0.68rem',
-        fontWeight: 600,
-        letterSpacing: '0.02em',
-        padding: '0.15rem 0.55rem',
-        borderRadius: '999px',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.3rem',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {variant === 'live' ? (
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: '#ff5a5a',
-            display: 'inline-block',
-          }}
-        />
-      ) : null}
+    <span style={base}>
+      {dot}
       {children}
     </span>
   )

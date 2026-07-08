@@ -127,7 +127,7 @@ export function RegistroView({ data }: { data: RegistroData }) {
 
       {/* Relatório */}
       {data.report ? (
-        <section className="bg-[#111214] border border-white/10 rounded-xl p-6 md:p-8 mb-8">
+        <section id="resumo" className="bg-[#111214] border border-white/10 rounded-xl p-6 md:p-8 mb-8 scroll-mt-24">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-headline-lg text-xl text-primary">Resumo executivo</h2>
             {!editingSummary ? (
