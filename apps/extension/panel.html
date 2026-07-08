@@ -46,6 +46,29 @@
       #home { flex: 1; display: grid; place-items: center; padding: 1.5rem; text-align: center; }
       #home h1 { font-size: 1.15rem; margin-bottom: 0.5rem; }
       #home p { color: var(--dim); font-size: 0.85rem; margin-bottom: 1.2rem; max-width: 30ch; }
+      #setup { display: none; margin-bottom: 1.1rem; text-align: left; }
+      #setup.on { display: block; }
+      #setup label {
+        display: block;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--dim);
+        margin: 0.7rem 0 0.3rem;
+      }
+      #setup select {
+        width: 100%;
+        font: inherit;
+        font-size: 0.82rem;
+        padding: 0.5rem 0.6rem;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: #0b1116;
+        color: var(--fg);
+      }
+      #setup select:focus { outline: none; border-color: var(--accent); }
+      #setup .hint { font-size: 0.68rem; color: var(--dim); margin: 0.35rem 0 0; max-width: none; }
       #status { font-size: 0.72rem; color: var(--dim); margin-top: 0.9rem; min-height: 1.2em; }
       #frame { flex: 1; border: 0; width: 100%; display: none; }
       .hidden { display: none !important; }
@@ -61,6 +84,13 @@
       <div>
         <h1>Entre sem saber nada.<br />Saia como especialista.</h1>
         <p>Abra a aba da sua reunião do Google Meet e inicie o copiloto.</p>
+        <div id="setup">
+          <label for="sel-base">Base de conhecimento</label>
+          <select id="sel-base"></select>
+          <label for="sel-expert">Clone que vai escutar</label>
+          <select id="sel-expert"></select>
+          <p class="hint">A base dá o contexto (cliente, preços, cases) das sugestões. Dá para trocar o clone durante a reunião.</p>
+        </div>
         <button id="btn-start" class="primary">Iniciar copiloto nesta reunião</button>
         <button id="btn-login" class="hidden">Fazer login no Meet Copilot</button>
         <p id="status"></p>

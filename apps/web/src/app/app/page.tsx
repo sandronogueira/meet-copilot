@@ -68,19 +68,29 @@ export default async function DashboardPage() {
           {meetings.map((m) => (
             <a
               key={m.id}
-              href={`/app/meetings/${m.id}`}
+              href={`/app/meetings/${m.id}/registro`}
+              title="Abrir o registro da sessão (transcrição, relatório, proposta)"
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '1rem',
                 padding: '0.9rem 1.4rem',
                 borderBottom: '1px solid var(--line)',
                 color: 'var(--fg)',
                 textDecoration: 'none',
               }}
             >
-              <span>{m.title ?? 'Reunião sem título'}</span>
-              <span className="mono muted" style={{ fontSize: '0.75rem' }}>
-                {m.platform ?? '—'} · {m.status}
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {m.title ?? 'Reunião sem título'}
+              </span>
+              <span className="mono muted" style={{ fontSize: '0.75rem', flexShrink: 0 }}>
+                {new Date(m.created_at as string).toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </span>
             </a>
           ))}

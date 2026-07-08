@@ -33,10 +33,24 @@ export class Session {
     // carrega o contexto do copiloto uma vez, em background (fail-soft)
     void this.persistence
       .loadContext(claims.workspaceId, claims.meetingId)
-      .then((ctx) => {
-        this.context = ctx
-      })
+      .then((ctx) => this.applyContext(ctx))
       .catch((e: unknown) => console.error(`[session ${claims.meetingId}] loadContext:`, e))
+  }
+
+  /** Ritmo real por nível de interrupção do clone — não é só texto de prompt. */
+  private static readonly PACE = {
+    discreto: { minWordsPerTurn: 60, maxIntervalMs: 60_000, cooldownMs: 45_000 },
+    moderado: { minWordsPerTurn: 40, maxIntervalMs: 25_000, cooldownMs: 10_000 },
+    ativo: { minWordsPerTurn: 25, maxIntervalMs: 15_000, cooldownMs: 6_000 },
+  } as const
+
+  private applyContext(ctx: CopilotContext): void {
+    this.context = ctx
+    const pace = Session.PACE[ctx.interruption ?? 'moderado']
+    this.trigger.updateConfig(pace)
+    console.log(
+      `[session ${this.claims.meetingId}] contexto: clone=${ctx.expertName ?? '—'} ritmo=${ctx.interruption ?? 'moderado'} base=${ctx.contextText.length} chars`,
+    )
   }
 
   /** Entrada bruta do WS do Recall — parse tolerante, fail-soft. */
@@ -93,7 +107,7 @@ export class Session {
 
   /** Recarrega o contexto (clone/base) — usado na troca de clone no meio da reunião. */
   async reloadContext(): Promise<void> {
-    this.context = await this.persistence.loadContext(this.claims.workspaceId, this.claims.meetingId)
+    this.applyContext(await this.persistence.loadContext(this.claims.workspaceId, this.claims.meetingId))
   }
 
   private async onTick(reason: TickReason): Promise<void> {
@@ -111,7 +125,13 @@ export class Session {
     }
     this.tickingSince = Date.now()
     try {
-      const ctx = this.context ?? { expertStyle: null, expertName: null, salesProfile: null, contextText: '' }
+      const ctx = this.context ?? {
+        expertStyle: null,
+        expertName: null,
+        interruption: null,
+        salesProfile: null,
+        contextText: '',
+      }
       const result = await this.pipeline.run(window, ctx, this.recentSuggestions)
       console.log(
         `[session ${this.claims.meetingId}] tick(${reason}): ${result.suggestions.length} sugestão(ões)`,

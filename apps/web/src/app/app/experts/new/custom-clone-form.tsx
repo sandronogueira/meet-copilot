@@ -185,24 +185,37 @@ export function CustomCloneForm() {
               <label className="block font-label-caps text-label-caps text-on-surface-variant uppercase mb-3">
                 Nível de Interrupção
               </label>
-              <div className="flex gap-3">
+              <input
+                type="range"
+                min={0}
+                max={2}
+                step={1}
+                value={INTERRUPTIONS.findIndex((o) => o.key === interruption)}
+                onChange={(e) => setInterruption(INTERRUPTIONS[Number(e.target.value)]?.key ?? 'moderado')}
+                className="w-full accent-[#00fbfb] cursor-pointer"
+              />
+              <div className="flex justify-between mt-2">
                 {INTERRUPTIONS.map((opt) => (
                   <button
                     key={opt.key}
                     type="button"
                     onClick={() => setInterruption(opt.key)}
-                    className={`flex-1 px-4 py-3 rounded-md font-body-sm transition-colors border ${
+                    className={`text-[13px] transition-colors ${
                       interruption === opt.key
-                        ? 'border-primary-fixed bg-primary-fixed/10 text-primary-fixed'
-                        : 'border-outline-variant text-on-surface-variant hover:border-primary-fixed'
+                        ? 'text-primary-fixed font-bold'
+                        : 'text-on-surface-variant hover:text-primary-fixed'
                     }`}
                   >
                     {opt.label}
                   </button>
                 ))}
               </div>
-              <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
-                Quão frequentemente o copiloto sugere durante a reunião.
+              <p className="font-body-sm text-body-sm text-on-surface-variant mt-3">
+                {interruption === 'discreto'
+                  ? 'Sugere pouco — só o essencial, a cada ~1 minuto de conversa.'
+                  : interruption === 'ativo'
+                    ? 'Sugere com frequência — não deixa passar nenhuma oportunidade.'
+                    : 'Equilíbrio: sugestões úteis a cada ~25 segundos de conversa.'}
               </p>
             </div>
 

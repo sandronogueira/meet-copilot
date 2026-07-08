@@ -13,6 +13,8 @@ import type { EngineConfig } from '../config'
 export interface CopilotContext {
   expertStyle: string | null
   expertName: string | null
+  /** Ritmo de sugestões do clone — calibra o TriggerEngine da sessão. */
+  interruption: 'discreto' | 'moderado' | 'ativo' | null
   salesProfile: Record<string, unknown> | null
   /** Texto bruto concatenado dos documentos da base escolhida (perfil, preços, cases). */
   contextText: string
@@ -114,7 +116,13 @@ export class Persistence {
 
   /** Carrega o contexto do copiloto: clone ativo + perfil de vendas + docs da base. */
   async loadContext(workspaceId: string, meetingId: string): Promise<CopilotContext> {
-    const empty: CopilotContext = { expertStyle: null, expertName: null, salesProfile: null, contextText: '' }
+    const empty: CopilotContext = {
+      expertStyle: null,
+      expertName: null,
+      interruption: null,
+      salesProfile: null,
+      contextText: '',
+    }
     if (!this.db) return empty
 
     const { data: meeting } = await this.db
@@ -136,14 +144,17 @@ export class Persistence {
 
     let expertStyle: string | null = null
     let expertName: string | null = null
+    let interruption: CopilotContext['interruption'] = null
     if (wsSettings.default_expert_id) {
       const { data: expert } = await this.db
         .from('sales_experts')
-        .select('name, style_prompt')
+        .select('name, style_prompt, interruption')
         .eq('id', wsSettings.default_expert_id)
         .single()
       expertStyle = expert?.style_prompt ?? null
       expertName = expert?.name ?? null
+      const lvl = expert?.interruption as string | null
+      interruption = lvl === 'discreto' || lvl === 'moderado' || lvl === 'ativo' ? lvl : null
     }
 
     let contextText = ''
@@ -165,7 +176,13 @@ export class Persistence {
         .slice(0, 8000)
     }
 
-    return { expertStyle, expertName, salesProfile: wsSettings.sales_profile ?? null, contextText }
+    return {
+      expertStyle,
+      expertName,
+      interruption,
+      salesProfile: wsSettings.sales_profile ?? null,
+      contextText,
+    }
   }
 
   /** Clones disponíveis para o workspace (globais + próprios) e qual está ativo. */

@@ -54,6 +54,11 @@ export class TriggerEngine {
     this.fire('manual')
   }
 
+  /** Recalibra o ritmo em runtime (nível de interrupção do clone ativo). */
+  updateConfig(cfg: Partial<TriggerConfig>): void {
+    this.cfg = { ...this.cfg, ...cfg }
+  }
+
   dispose(): void {
     clearInterval(this.timer)
   }

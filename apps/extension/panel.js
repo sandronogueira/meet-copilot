@@ -11,13 +11,55 @@ const el = {
   stop: document.getElementById('btn-stop'),
   login: document.getElementById('btn-login'),
   status: document.getElementById('status'),
+  setup: document.getElementById('setup'),
+  selBase: document.getElementById('sel-base'),
+  selExpert: document.getElementById('sel-expert'),
 }
 
 let appOrigin = DEFAULT_APP_ORIGIN
 
 chrome.storage.local.get('appOrigin').then(({ appOrigin: saved }) => {
   if (saved) appOrigin = saved // override p/ dev: chrome.storage.local.set({appOrigin:'http://localhost:3000'})
+  void loadOptions()
 })
+
+// Pré-reunião: bases + clones para escolher o contexto (ou começar no escuro).
+// Fail-soft: sem login/erro, os selects somem e o fluxo antigo continua valendo.
+async function loadOptions() {
+  try {
+    const res = await fetch(`${appOrigin}/api/extension/bootstrap`, { credentials: 'include' })
+    if (!res.ok) return
+    const json = await res.json()
+    if (!json.ok) return
+    const { bases, experts, activeExpertId, defaultBaseId } = json.data
+
+    el.selBase.innerHTML = ''
+    for (const b of bases) {
+      const opt = document.createElement('option')
+      opt.value = b.id
+      opt.textContent = b.is_default ? `${b.name} (padrão)` : b.name
+      if (b.id === defaultBaseId) opt.selected = true
+      el.selBase.appendChild(opt)
+    }
+    const dark = document.createElement('option')
+    dark.value = ''
+    dark.textContent = 'Começar no escuro (sem base)'
+    el.selBase.appendChild(dark)
+
+    el.selExpert.innerHTML = ''
+    for (const e of experts) {
+      const opt = document.createElement('option')
+      opt.value = e.id
+      opt.textContent = e.category ? `${e.name} — ${e.category}` : e.name
+      if (e.id === activeExpertId) opt.selected = true
+      el.selExpert.appendChild(opt)
+    }
+
+    if (bases.length > 0 || experts.length > 0) el.setup.classList.add('on')
+  } catch {
+    // sem rede/login — segue sem seletores
+  }
+}
 
 function setStatus(msg) {
   el.status.textContent = msg ?? ''
@@ -38,6 +80,9 @@ el.start.addEventListener('click', async () => {
   el.login.classList.add('hidden')
 
   try {
+    // usuário pode ter logado depois que o painel abriu — tenta carregar as opções
+    if (!el.setup.classList.contains('on')) await loadOptions()
+
     const tab = await activeTab()
     if (!tab?.url || !tab.url.includes('meet.google.com/')) {
       setStatus('Abra a aba da reunião do Google Meet e tente de novo.')
@@ -69,11 +114,18 @@ el.start.addEventListener('click', async () => {
       return
     }
 
+    const payload = { meetingUrl: tab.url.split('?')[0] }
+    if (el.setup.classList.contains('on')) {
+      // '' = "no escuro" (null explícito) · uuid = base escolhida
+      payload.contextBaseId = el.selBase.value === '' ? null : el.selBase.value
+      if (el.selExpert.value) payload.expertId = el.selExpert.value
+    }
+
     const res = await fetch(`${appOrigin}/api/extension/start`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ meetingUrl: tab.url.split('?')[0] }),
+      body: JSON.stringify(payload),
     })
 
     if (res.status === 401) {
