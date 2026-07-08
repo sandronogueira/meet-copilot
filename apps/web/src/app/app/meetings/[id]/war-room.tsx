@@ -97,6 +97,8 @@ export function WarRoom({
   // o cliente não vê que uma IA está soprando as perguntas.
   const [discreet, setDiscreet] = useState(false)
   const feedRef = useRef<HTMLDivElement>(null)
+  // fallback: se nem a resposta HTTP nem o broadcast chegarem, desiste após 90s
+  const finalizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const canFinalize = Boolean(engineUrl && controlToken)
 
@@ -154,6 +156,25 @@ export function WarRoom({
     if (!canFinalize || finalizing) return
     setFinalizing(kind)
     setFinalizeError(null)
+    const label = kind === 'report' ? 'relatório' : 'proposta'
+
+    // A geração leva 10-30s e o engine não manda nada pela conexão nesse tempo.
+    // Com a tela sendo compartilhada, proxies/rede derrubam essa conexão ociosa
+    // ("Failed to fetch"). Por isso o resultado REAL chega pelo broadcast
+    // (report/proposal), disparado quando o engine termina. Este fetch é só o
+    // gatilho: se a resposta vier, é o caminho rápido; se a conexão cair,
+    // esperamos o broadcast e só desistimos no timeout de fallback.
+    if (finalizeTimerRef.current) clearTimeout(finalizeTimerRef.current)
+    finalizeTimerRef.current = setTimeout(() => {
+      setFinalizing((cur) => {
+        if (cur !== kind) return cur
+        setFinalizeError(
+          `A ${label} está demorando mais que o normal — pode aparecer em instantes ou no registro da reunião. Tente de novo se não vier.`,
+        )
+        return null
+      })
+    }, 90_000)
+
     try {
       const res = await fetch(`${engineUrl}/${kind}?token=${encodeURIComponent(controlToken!)}`, {
         method: 'POST',
@@ -163,16 +184,19 @@ export function WarRoom({
         data?: ReportData & { url?: string }
         error?: { message: string }
       }
+      if (finalizeTimerRef.current) clearTimeout(finalizeTimerRef.current)
       if (!json.ok) {
-        setFinalizeError(json.error?.message ?? `Falha ao gerar ${kind === 'report' ? 'relatório' : 'proposta'}`)
+        setFinalizeError(json.error?.message ?? `Falha ao gerar ${label}`)
+        setFinalizing(null)
         return
       }
       if (kind === 'report') setReport(json.data as ReportData)
       else if (json.data?.url) setProposalUrl(json.data.url)
-    } catch (e) {
-      setFinalizeError(String(e))
-    } finally {
       setFinalizing(null)
+    } catch {
+      // conexão caiu durante a geração longa — NÃO é erro final: o engine ainda
+      // conclui e entrega pelo broadcast. Mantém "Gerando…" até o broadcast ou
+      // o timeout de fallback resolverem.
     }
   }
 
@@ -192,11 +216,17 @@ export function WarRoom({
         setSuggestions((prev) => (prev.some((p) => p.id === s.id) ? prev : [...prev.slice(-40), s]))
       })
       .on('broadcast', { event: 'report' }, ({ payload }) => {
+        if (finalizeTimerRef.current) clearTimeout(finalizeTimerRef.current)
         setReport(payload as ReportData)
+        setFinalizing(null)
       })
       .on('broadcast', { event: 'proposal' }, ({ payload }) => {
         const p = payload as { url?: string }
-        if (p.url) setProposalUrl(p.url)
+        if (p.url) {
+          if (finalizeTimerRef.current) clearTimeout(finalizeTimerRef.current)
+          setProposalUrl(p.url)
+          setFinalizing(null)
+        }
       })
       .on('broadcast', { event: 'expert' }, ({ payload }) => {
         const p = payload as { id?: string; name?: string }
