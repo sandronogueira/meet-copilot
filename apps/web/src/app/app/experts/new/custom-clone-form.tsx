@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { createCustomExpertAction, uploadExpertAvatarAction } from '../actions'
+import { createCustomExpertAction, updateCustomExpertAction, uploadExpertAvatarAction } from '../actions'
 
 const TONES = ['Formal', 'Persuasivo', 'Amigável', 'Analítico', 'Assertivo']
 const INTERRUPTIONS = [
@@ -11,24 +11,40 @@ const INTERRUPTIONS = [
   { key: 'ativo', label: 'Ativo' },
 ] as const
 
-export function CustomCloneForm() {
+export interface CloneInitial {
+  id: string
+  name: string
+  role: string
+  description: string
+  tone: string
+  interruption: 'discreto' | 'moderado' | 'ativo'
+  avatarUrl: string | null
+}
+
+export function CustomCloneForm({ initial }: { initial?: CloneInitial }) {
+  const editing = Boolean(initial)
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const [name, setName] = useState('')
-  const [role, setRole] = useState('')
-  const [description, setDescription] = useState('')
-  const [tone, setTone] = useState('Persuasivo')
-  const [interruption, setInterruption] = useState<'discreto' | 'moderado' | 'ativo'>('moderado')
+  const [name, setName] = useState(initial?.name ?? '')
+  const [role, setRole] = useState(initial?.role ?? '')
+  const [description, setDescription] = useState(initial?.description ?? '')
+  const [tone, setTone] = useState(initial?.tone ?? 'Persuasivo')
+  const [interruption, setInterruption] = useState<'discreto' | 'moderado' | 'ativo'>(
+    initial?.interruption ?? 'moderado',
+  )
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  // preview inicial = foto já salva (edição); trocado por objectURL ao escolher outra
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(initial?.avatarUrl ?? null)
+  const [avatarRemoved, setAvatarRemoved] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
   function pickAvatar(file: File | null) {
     setAvatarFile(file)
+    setAvatarRemoved(!file)
     setAvatarPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev)
+      if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
       return file ? URL.createObjectURL(file) : null
     })
   }
@@ -36,7 +52,8 @@ export function CustomCloneForm() {
   function submit() {
     setError(null)
     startTransition(async () => {
-      let avatarUrl: string | undefined
+      // avatarUrl: string nova (upload) · null (removida) · undefined (mantém)
+      let avatarUrl: string | null | undefined
       if (avatarFile) {
         const fd = new FormData()
         fd.set('file', avatarFile)
@@ -46,8 +63,27 @@ export function CustomCloneForm() {
           return
         }
         avatarUrl = up.url
+      } else if (editing && avatarRemoved) {
+        avatarUrl = null
       }
-      const r = await createCustomExpertAction({ name, role, description, tone, interruption, avatarUrl })
+      const r = editing
+        ? await updateCustomExpertAction({
+            id: initial!.id,
+            name,
+            role,
+            description,
+            tone,
+            interruption,
+            avatarUrl,
+          })
+        : await createCustomExpertAction({
+            name,
+            role,
+            description,
+            tone,
+            interruption,
+            avatarUrl: avatarUrl ?? undefined,
+          })
       if (r?.error) setError(r.error)
       // sucesso → a action redireciona para /app/experts
     })
@@ -60,7 +96,7 @@ export function CustomCloneForm() {
           CLONES · SEU MODELO
         </p>
         <h1 className="font-display-lg text-3xl md:text-display-lg text-primary mb-4">
-          Crie seu Clone Personalizado
+          {editing ? 'Editar Clone' : 'Crie seu Clone Personalizado'}
         </h1>
         <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">
           Defina o tom, a expertise e o comportamento do seu agente exclusivo.
@@ -102,7 +138,7 @@ export function CustomCloneForm() {
             </button>
             <p className="text-center font-body-sm text-body-sm text-on-surface-variant mt-3">
               {avatarPreview
-                ? 'Foto selecionada — será salva ao criar o clone.'
+                ? `Foto selecionada — será salva ao ${editing ? 'atualizar' : 'criar'} o clone.`
                 : 'Clique para enviar uma foto (PNG/JPG até 5MB) ou deixe a inicial.'}
             </p>
             {avatarPreview ? (
@@ -238,7 +274,7 @@ export function CustomCloneForm() {
           disabled={pending || !name || description.length < 20}
           className="px-8 py-3 font-label-caps text-label-caps uppercase bg-primary-fixed text-on-primary-fixed rounded-md hover:shadow-[0_0_20px_rgba(0,251,251,0.4)] transition-all disabled:opacity-50 flex items-center gap-2"
         >
-          {pending ? 'Criando…' : 'Criar Clone'}
+          {pending ? 'Salvando…' : editing ? 'Salvar Alterações' : 'Criar Clone'}
           <span className="material-symbols-outlined text-[18px]">check</span>
         </button>
       </div>

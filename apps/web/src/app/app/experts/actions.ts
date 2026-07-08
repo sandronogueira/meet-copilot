@@ -91,6 +91,29 @@ const createCloneSchema = z.object({
   avatarUrl: z.url().optional(),
 })
 
+/** Voice DNA composto a partir das escolhas do formulário. */
+function composeStylePrompt(
+  role: string | undefined,
+  description: string,
+  tone: string,
+  interruption: 'discreto' | 'moderado' | 'ativo',
+): string {
+  return [
+    role ? `Você atua como ${role}.` : '',
+    description,
+    `Tom de voz predominante: ${tone}.`,
+    `Nível de interrupção: ${interruption} — ${
+      interruption === 'discreto'
+        ? 'só fale quando for muito relevante.'
+        : interruption === 'ativo'
+          ? 'sugira com frequência, sem deixar passar oportunidades.'
+          : 'equilibre sugestões úteis sem sobrecarregar.'
+    }`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
 function slugify(name: string): string {
   const base = name
     .normalize('NFD')
@@ -113,22 +136,6 @@ export async function createCustomExpertAction(
   const { supabase, workspaceId } = await ctx()
   const { name, role, description, tone, interruption, avatarUrl } = parsed.data
 
-  // Voice DNA composto a partir das escolhas do formulário
-  const stylePrompt = [
-    role ? `Você atua como ${role}.` : '',
-    description,
-    `Tom de voz predominante: ${tone}.`,
-    `Nível de interrupção: ${interruption} — ${
-      interruption === 'discreto'
-        ? 'só fale quando for muito relevante.'
-        : interruption === 'ativo'
-          ? 'sugira com frequência, sem deixar passar oportunidades.'
-          : 'equilibre sugestões úteis sem sobrecarregar.'
-    }`,
-  ]
-    .filter(Boolean)
-    .join('\n')
-
   const { error } = await supabase.from('sales_experts').insert({
     scope: 'workspace',
     workspace_id: workspaceId,
@@ -139,11 +146,78 @@ export async function createCustomExpertAction(
     category: 'Seu Modelo',
     interruption,
     avatar_url: avatarUrl ?? null,
-    style_prompt: stylePrompt,
-    question_frameworks: { tone, interruption },
+    style_prompt: composeStylePrompt(role, description, tone, interruption),
+    // description completa guardada aqui → edição sem perda (bio é truncado)
+    question_frameworks: { tone, interruption, description },
     status: 'active',
   })
   if (error) return { error: error.message }
 
   redirect('/app/experts')
+}
+
+const updateCloneSchema = createCloneSchema.extend({
+  id: z.uuid(),
+  /** null = remover a foto · undefined = manter a atual */
+  avatarUrl: z.url().nullish(),
+})
+
+/** Edita um clone do workspace (só scope='workspace' e do próprio tenant). */
+export async function updateCustomExpertAction(
+  input: z.infer<typeof updateCloneSchema>,
+): Promise<ActionResult> {
+  const parsed = updateCloneSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message }
+
+  const { supabase, workspaceId } = await ctx()
+  const { id, name, role, description, tone, interruption, avatarUrl } = parsed.data
+
+  const update: Record<string, unknown> = {
+    name,
+    tagline: role || 'Clone personalizado',
+    bio: description.slice(0, 300),
+    interruption,
+    style_prompt: composeStylePrompt(role, description, tone, interruption),
+    question_frameworks: { tone, interruption, description },
+  }
+  // undefined = mantém a foto atual; null = remove; string = troca
+  if (avatarUrl !== undefined) update.avatar_url = avatarUrl
+
+  const { error } = await supabase
+    .from('sales_experts')
+    .update(update)
+    .eq('id', id)
+    .eq('workspace_id', workspaceId)
+    .eq('scope', 'workspace')
+  if (error) return { error: error.message }
+
+  revalidatePath('/app/experts')
+  redirect('/app/experts')
+}
+
+/** Exclui um clone do workspace. Se era o clone ativo, limpa a seleção. */
+export async function deleteCustomExpertAction(expertId: string): Promise<ActionResult> {
+  if (!z.uuid().safeParse(expertId).success) return { error: 'id inválido' }
+
+  const { supabase, workspaceId } = await ctx()
+
+  const { error } = await supabase
+    .from('sales_experts')
+    .delete()
+    .eq('id', expertId)
+    .eq('workspace_id', workspaceId)
+    .eq('scope', 'workspace')
+  if (error) return { error: error.message }
+
+  // se era o clone ativo do workspace, remove a referência órfã
+  const { data: ws } = await supabase.from('workspaces').select('settings').eq('id', workspaceId).single()
+  const settings = (ws?.settings ?? {}) as Record<string, unknown> & { default_expert_id?: string }
+  if (settings.default_expert_id === expertId) {
+    const { default_expert_id: _removed, ...rest } = settings
+    await supabase.from('workspaces').update({ settings: rest }).eq('id', workspaceId)
+    revalidatePath('/app')
+  }
+
+  revalidatePath('/app/experts')
+  return {}
 }

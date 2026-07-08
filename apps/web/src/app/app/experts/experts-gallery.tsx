@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { selectExpertAction } from './actions'
+import { selectExpertAction, deleteCustomExpertAction } from './actions'
 
 export interface ExpertCard {
   id: string
@@ -31,6 +31,7 @@ export function ExpertsGallery({
   const [selected, setSelected] = useState<string | null>(selectedId)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   function pick(id: string) {
     setError(null)
@@ -40,6 +41,18 @@ export function ExpertsGallery({
       if (r.error) {
         setError(r.error)
         setSelected(selectedId)
+      }
+    })
+  }
+
+  function remove(id: string) {
+    setError(null)
+    startTransition(async () => {
+      const r = await deleteCustomExpertAction(id)
+      if (r.error) setError(r.error)
+      else {
+        setConfirmDeleteId(null)
+        if (selected === id) setSelected(null)
       }
     })
   }
@@ -64,63 +77,113 @@ export function ExpertsGallery({
         {experts.map((expert) => {
           const isSel = selected === expert.id
           const hot = expert.category ? HIGHLIGHT.has(expert.category) : false
+          const own = expert.scope === 'workspace'
+          const confirming = confirmDeleteId === expert.id
           return (
-            <button
-              key={expert.id}
-              type="button"
-              onClick={() => pick(expert.id)}
-              disabled={pending}
-              className={`text-left bg-[#111214] rounded-xl p-6 relative overflow-hidden transition-colors duration-300 cursor-pointer ${
-                isSel
-                  ? 'border border-primary-fixed glow-effect'
-                  : 'border border-outline-variant hover:border-primary-fixed'
-              }`}
-            >
-              {isSel ? (
-                <div className="absolute top-4 right-4 text-primary-fixed">
+            <div key={expert.id} className="relative">
+              <button
+                type="button"
+                onClick={() => pick(expert.id)}
+                disabled={pending}
+                className={`w-full text-left bg-[#111214] rounded-xl p-6 relative overflow-hidden transition-colors duration-300 cursor-pointer ${
+                  isSel
+                    ? 'border border-primary-fixed glow-effect'
+                    : 'border border-outline-variant hover:border-primary-fixed'
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  {expert.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={expert.avatar_url}
+                      alt={expert.name}
+                      className={`w-16 h-16 rounded-full object-cover shrink-0 border ${
+                        isSel ? 'border-primary-fixed' : 'border-outline-variant'
+                      }`}
+                    />
+                  ) : (
+                    <div
+                      className={`w-16 h-16 rounded-full grid place-items-center shrink-0 font-display-lg text-2xl font-bold ${
+                        isSel
+                          ? 'border border-primary-fixed text-primary-fixed bg-primary-fixed/10'
+                          : 'border border-outline-variant text-on-surface-variant bg-surface-container'
+                      }`}
+                    >
+                      {initials(expert.name)}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0 pr-16">
+                    <h3 className="font-headline-lg text-xl text-primary mb-1">{expert.name}</h3>
+                    {expert.category ? (
+                      <span
+                        className={`inline-block px-2 py-1 rounded font-label-caps text-[10px] mb-3 border ${
+                          hot
+                            ? 'border-primary-fixed/30 bg-primary-fixed/10 text-primary-fixed'
+                            : 'border-outline-variant text-on-surface-variant'
+                        }`}
+                      >
+                        {expert.category}
+                      </span>
+                    ) : null}
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">{expert.tagline}</p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Canto superior direito: seleção (globais) OU controles (próprios) */}
+              {own ? (
+                <div className="absolute top-4 right-4 flex items-center gap-1.5 z-10">
+                  {isSel ? (
+                    <span
+                      className="material-symbols-outlined text-primary-fixed text-[20px] mr-0.5"
+                      style={{ fontVariationSettings: "'FILL' 1" }}
+                    >
+                      check_circle
+                    </span>
+                  ) : null}
+                  {confirming ? (
+                    <>
+                      <button
+                        onClick={() => remove(expert.id)}
+                        disabled={pending}
+                        className="text-[11px] font-bold text-error border border-error/50 rounded-md px-2 py-1 hover:bg-error/10 transition-colors"
+                      >
+                        {pending ? 'Excluindo…' : 'Excluir'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="text-[11px] text-on-surface-variant border border-outline-variant rounded-md px-2 py-1 hover:border-white/30"
+                      >
+                        Não
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href={`/app/experts/${expert.id}/edit`}
+                        title="Editar este clone"
+                        className="material-symbols-outlined text-[18px] text-on-surface-variant hover:text-primary-fixed transition-colors p-1.5 rounded-md hover:bg-white/5"
+                      >
+                        edit
+                      </Link>
+                      <button
+                        onClick={() => setConfirmDeleteId(expert.id)}
+                        title="Excluir este clone"
+                        className="material-symbols-outlined text-[18px] text-on-surface-variant hover:text-error transition-colors p-1.5 rounded-md hover:bg-white/5"
+                      >
+                        delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : isSel ? (
+                <div className="absolute top-4 right-4 text-primary-fixed z-10 pointer-events-none">
                   <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
                     check_circle
                   </span>
                 </div>
               ) : null}
-              <div className="flex items-start gap-4">
-                {expert.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={expert.avatar_url}
-                    alt={expert.name}
-                    className={`w-16 h-16 rounded-full object-cover shrink-0 border ${
-                      isSel ? 'border-primary-fixed' : 'border-outline-variant'
-                    }`}
-                  />
-                ) : (
-                  <div
-                    className={`w-16 h-16 rounded-full grid place-items-center shrink-0 font-display-lg text-2xl font-bold ${
-                      isSel
-                        ? 'border border-primary-fixed text-primary-fixed bg-primary-fixed/10'
-                        : 'border border-outline-variant text-on-surface-variant bg-surface-container'
-                    }`}
-                  >
-                    {initials(expert.name)}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-headline-lg text-xl text-primary mb-1">{expert.name}</h3>
-                  {expert.category ? (
-                    <span
-                      className={`inline-block px-2 py-1 rounded font-label-caps text-[10px] mb-3 border ${
-                        hot
-                          ? 'border-primary-fixed/30 bg-primary-fixed/10 text-primary-fixed'
-                          : 'border-outline-variant text-on-surface-variant'
-                      }`}
-                    >
-                      {expert.category}
-                    </span>
-                  ) : null}
-                  <p className="font-body-sm text-body-sm text-on-surface-variant">{expert.tagline}</p>
-                </div>
-              </div>
-            </button>
+            </div>
           )
         })}
 
