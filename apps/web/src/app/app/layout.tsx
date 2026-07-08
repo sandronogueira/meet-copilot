@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { supabaseServer } from '@/lib/supabase/server'
+import { isSuperadmin } from '@/lib/superadmin'
 import { signOutAction } from '../(auth)/actions'
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -47,6 +48,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <a href="/app/profile" style={{ color: 'var(--fg-dim)' }}>
             Perfil
           </a>
+          {isSuperadmin(user.email) ? (
+            <a href="/backoffice" style={{ color: 'var(--fg-dim)' }}>
+              Backoffice
+            </a>
+          ) : null}
         </nav>
         <form action={signOutAction}>
           <button className="btn btn-ghost btn-inline" type="submit" style={{ padding: '0.4rem 0.9rem' }}>
