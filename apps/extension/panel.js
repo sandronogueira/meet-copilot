@@ -15,6 +15,7 @@ const el = {
   setup: document.getElementById('setup'),
   selBase: document.getElementById('sel-base'),
   selExpert: document.getElementById('sel-expert'),
+  quickContext: document.getElementById('quick-context'),
 }
 
 // Recolher: fecha o side panel inteiro (libera o espaço ao compartilhar a
@@ -141,6 +142,8 @@ el.start.addEventListener('click', async () => {
       // '' = "no escuro" (null explícito) · uuid = base escolhida
       payload.contextBaseId = el.selBase.value === '' ? null : el.selBase.value
       if (el.selExpert.value) payload.expertId = el.selExpert.value
+      const quick = el.quickContext.value.trim()
+      if (quick) payload.quickContext = quick.slice(0, 4000)
     }
 
     const res = await fetch(`${appOrigin}/api/extension/start`, {

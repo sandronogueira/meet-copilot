@@ -90,6 +90,21 @@
         color: var(--fg);
       }
       #setup select:focus { outline: none; border-color: var(--accent); }
+      #setup textarea {
+        width: 100%;
+        font: inherit;
+        font-size: 0.84rem;
+        line-height: 1.5;
+        padding: 0.62rem 0.7rem;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #05080a;
+        color: var(--fg);
+        resize: vertical;
+        min-height: 4.4rem;
+      }
+      #setup textarea:focus { outline: none; border-color: var(--accent); }
+      #setup textarea::placeholder { color: var(--dim); }
       #setup .hint {
         font-size: 0.74rem;
         line-height: 1.6;
@@ -138,7 +153,14 @@
             <label for="sel-expert">Clone que vai escutar</label>
             <select id="sel-expert"></select>
           </div>
-          <p class="hint">A base dá o contexto das sugestões — cliente, preços, cases. O clone pode ser trocado durante a reunião.</p>
+          <div class="field">
+            <label for="quick-context">Contexto rápido desta reunião (opcional)</label>
+            <textarea
+              id="quick-context"
+              placeholder="Cole aqui algo sobre o cliente, a oportunidade, o que já foi conversado… O copiloto já entra sabendo."
+            ></textarea>
+          </div>
+          <p class="hint">A base dá o contexto salvo; o campo acima entra só nesta reunião. O clone pode ser trocado durante a call.</p>
         </div>
         <button id="btn-start" class="primary">Iniciar copiloto nesta reunião</button>
         <button id="btn-login" class="hidden">Fazer login no Meet Copilot</button>

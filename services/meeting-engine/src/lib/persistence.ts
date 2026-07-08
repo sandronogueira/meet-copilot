@@ -131,7 +131,10 @@ export class Persistence {
       .select('settings')
       .eq('id', meetingId)
       .single()
-    const meetingSettings = (meeting?.settings ?? {}) as { context_base_id?: string }
+    const meetingSettings = (meeting?.settings ?? {}) as {
+      context_base_id?: string
+      quick_context?: string
+    }
 
     const { data: ws } = await this.db
       .from('workspaces')
@@ -158,7 +161,7 @@ export class Persistence {
       interruption = lvl === 'discreto' || lvl === 'moderado' || lvl === 'ativo' ? lvl : null
     }
 
-    let contextText = ''
+    let baseText = ''
     const baseId = meetingSettings.context_base_id
     if (baseId) {
       const { data: docs } = await this.db
@@ -167,15 +170,25 @@ export class Persistence {
         .eq('workspace_id', workspaceId)
         .eq('context_base_id', baseId)
         .limit(30)
-      contextText = (docs ?? [])
+      baseText = (docs ?? [])
         .map((d) => {
           const raw = (d.meta as { raw_text?: string } | null)?.raw_text
           return `## ${d.title}${d.source_url ? ` (${d.source_url})` : ''}\n${raw ?? ''}`.trim()
         })
         .filter(Boolean)
         .join('\n\n')
-        .slice(0, 8000)
     }
+
+    // Contexto rápido digitado ao iniciar a reunião — prioridade sobre a base
+    // (é o que o usuário quis dizer "de cara" para ESTA conversa).
+    const quick = meetingSettings.quick_context?.trim()
+    const contextText = [
+      quick ? `## Contexto desta reunião (informado ao iniciar)\n${quick}` : '',
+      baseText,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+      .slice(0, 9000)
 
     return {
       expertStyle,

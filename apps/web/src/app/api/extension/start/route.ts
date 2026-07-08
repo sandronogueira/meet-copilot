@@ -10,6 +10,8 @@ const startSchema = z.object({
   contextBaseId: z.uuid().nullable().optional(),
   /** clone escolhido no painel — vira o default do workspace (mesma semântica do seletor do war room) */
   expertId: z.uuid().optional(),
+  /** contexto colado na hora de iniciar — vale só para esta reunião */
+  quickContext: z.string().max(4000).optional(),
   meetingProfileId: z.uuid().optional(),
 })
 
@@ -120,7 +122,7 @@ export async function POST(req: Request) {
       status: 'in_call',
       capture_mode: 'extension',
       meeting_profile_id: parsed.data.meetingProfileId ?? null,
-      settings: { context_base_id: baseId },
+      settings: { context_base_id: baseId, quick_context: parsed.data.quickContext?.trim() || undefined },
       consent: { mode: 'extension', note: 'captura local pela extensão do usuário' },
     })
     .select('id')
