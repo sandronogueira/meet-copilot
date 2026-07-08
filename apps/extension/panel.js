@@ -17,6 +17,9 @@ const el = {
 }
 
 let appOrigin = DEFAULT_APP_ORIGIN
+// Engine da reunião ativa — o Encerrar avisa o servidor para liberar a sessão
+// (sem isso a reunião ficava "in_call" para sempre e vazava memória no engine).
+let activeEngine = null
 
 chrome.storage.local.get('appOrigin').then(({ appOrigin: saved }) => {
   if (saved) appOrigin = saved // override p/ dev: chrome.storage.local.set({appOrigin:'http://localhost:3000'})
@@ -143,6 +146,7 @@ el.start.addEventListener('click', async () => {
     }
 
     const { ingestUrl, ingestToken, panelUrl } = json.data
+    activeEngine = { url: ingestUrl.replace(/\/ingest$/, ''), token: ingestToken }
 
     // A captura roda no service worker, que herda o activeTab do clique no ícone.
     const captura = await chrome.runtime.sendMessage({
@@ -176,6 +180,14 @@ el.start.addEventListener('click', async () => {
 })
 
 el.stop.addEventListener('click', async () => {
+  // avisa o engine para liberar a sessão e marcar a reunião como encerrada —
+  // fail-soft: o stop local NUNCA depende da resposta do servidor
+  if (activeEngine) {
+    fetch(`${activeEngine.url}/end?token=${encodeURIComponent(activeEngine.token)}`, {
+      method: 'POST',
+    }).catch(() => {})
+    activeEngine = null
+  }
   await chrome.runtime.sendMessage({ target: 'background', type: 'STOP_CAPTURE' })
   el.frame.src = 'about:blank'
   el.frame.style.display = 'none'

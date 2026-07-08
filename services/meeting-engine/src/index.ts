@@ -241,6 +241,25 @@ async function handleExperts(req: IncomingMessage, res: ServerResponse): Promise
   json(res, 200, result)
 }
 
+/**
+ * POST /end?token=<JWT> — encerramento explícito da reunião (botão Encerrar
+ * da extensão). Libera a sessão em memória (timer/buffer/canal) e marca a
+ * meeting como done — sem isso, sessões viravam vazamento permanente.
+ */
+async function handleEnd(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = new URL(req.url ?? '/', 'http://localhost')
+  const claims = await verifyToken(url.searchParams.get('token') ?? '')
+  if (!claims) {
+    json(res, 403, { ok: false, error: { code: 'TOKEN', message: 'token inválido' } })
+    return
+  }
+  await persistence.broadcastEvent(claims.meetingId, 'meeting_ended', { ts: Date.now() })
+  sessions.close(claims.meetingId)
+  await persistence.endMeeting(claims.meetingId)
+  console.log(`[end ${claims.meetingId}] reunião encerrada pelo usuário`)
+  json(res, 200, { ok: true })
+}
+
 const server = createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' })
@@ -249,6 +268,8 @@ const server = createServer((req, res) => {
         ok: true,
         uptimeS: Math.round((Date.now() - startedAt) / 1000),
         sessions: sessions.count,
+        memMB: Math.round(process.memoryUsage().rss / 1048576),
+        idleMs: sessions.idleMs,
         supabase: Boolean(config.SUPABASE_URL),
         stt: stt?.name ?? null,
         copilot: Boolean(pipeline),
@@ -275,6 +296,24 @@ const server = createServer((req, res) => {
     }
   }
   const pathname = (req.url ?? '/').split('?')[0]
+  if (pathname === '/end') {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'access-control-allow-origin': '*',
+        'access-control-allow-methods': 'POST, OPTIONS',
+        'access-control-allow-headers': 'content-type',
+      })
+      res.end()
+      return
+    }
+    if (req.method === 'POST') {
+      void handleEnd(req, res).catch((e: unknown) => {
+        console.error('[end] erro não tratado:', e)
+        if (!res.headersSent) json(res, 500, { ok: false })
+      })
+      return
+    }
+  }
   if (pathname === '/experts' || pathname === '/expert') {
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {

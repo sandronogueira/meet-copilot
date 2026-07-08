@@ -8,6 +8,7 @@ import {
   type Report,
 } from '@meet-copilot/shared'
 import type { EngineConfig } from '../config'
+import type { BufferedSegment } from '../session/TranscriptBuffer'
 
 /** Contexto do copiloto para uma reunião (o QUE o agente sabe + COMO pensa). */
 export interface CopilotContext {
@@ -77,13 +78,16 @@ export class Persistence {
     return ok(undefined)
   }
 
-  /** Canal Broadcast por reunião (lazy). Nome não-adivinhável: uuid da meeting. */
+  /**
+   * Canal Broadcast por reunião (lazy). Nome não-adivinhável: uuid da meeting.
+   * httpSend() é REST puro (não precisa de subscribe/WS) — menos conexões
+   * penduradas no engine. Mantemos o Map só como cache do objeto do canal.
+   */
   private channelFor(meetingId: string): RealtimeChannel | null {
     if (!this.rt) return null
     let ch = this.channels.get(meetingId)
     if (!ch) {
       ch = this.rt.channel(`meeting:${meetingId}`, { config: { broadcast: { self: false } } })
-      ch.subscribe()
       this.channels.set(meetingId, ch)
     }
     return ch
@@ -98,17 +102,14 @@ export class Persistence {
     const ch = this.channelFor(meetingId)
     if (!ch) return
     try {
-      await ch.send({
-        type: 'broadcast',
-        event: 'segment',
-        payload: {
-          speaker: seg.speakerLabel,
-          text: seg.text,
-          isFinal: seg.isFinal,
-          seq,
-          ts: Date.now(),
-        },
+      const res = await ch.httpSend('segment', {
+        speaker: seg.speakerLabel,
+        text: seg.text,
+        isFinal: seg.isFinal,
+        seq,
+        ts: Date.now(),
       })
+      if (!res.success) console.error(`[realtime ${meetingId}] broadcast falhou:`, res.error)
     } catch (e) {
       console.error(`[realtime ${meetingId}] broadcast falhou:`, e)
     }
@@ -275,7 +276,8 @@ export class Persistence {
     const ch = this.channelFor(meetingId)
     if (!ch) return
     try {
-      await ch.send({ type: 'broadcast', event: 'suggestion', payload: { ...payload, ts: Date.now() } })
+      const res = await ch.httpSend('suggestion', { ...payload, ts: Date.now() })
+      if (!res.success) console.error(`[realtime ${meetingId}] broadcast sugestão falhou:`, res.error)
     } catch (e) {
       console.error(`[realtime ${meetingId}] broadcast sugestão falhou:`, e)
     }
@@ -344,7 +346,8 @@ export class Persistence {
     const ch = this.channelFor(meetingId)
     if (!ch) return
     try {
-      await ch.send({ type: 'broadcast', event, payload })
+      const res = await ch.httpSend(event, payload)
+      if (!res.success) console.error(`[realtime ${meetingId}] broadcast ${event} falhou:`, res.error)
     } catch (e) {
       console.error(`[realtime ${meetingId}] broadcast ${event} falhou:`, e)
     }
@@ -356,5 +359,43 @@ export class Persistence {
       void ch.unsubscribe()
       this.channels.delete(meetingId)
     }
+  }
+
+  /** Encerra a reunião (fim de ciclo de vida): status done + ended_at. Fail-soft. */
+  async endMeeting(meetingId: string): Promise<ModuleOutput<void>> {
+    if (!this.db) return ok(undefined)
+    const { error } = await this.db
+      .from('meetings')
+      .update({ status: 'done', ended_at: new Date().toISOString() })
+      .eq('id', meetingId)
+      .eq('status', 'in_call')
+    if (error) return err('DB_END_MEETING', error.message)
+    return ok(undefined)
+  }
+
+  /**
+   * Últimos N segmentos finais persistidos, em ordem crescente de seq —
+   * usado para reidratar o TranscriptBuffer em memória após restart/deploy.
+   */
+  async loadRecentSegments(meetingId: string, limit = 40): Promise<BufferedSegment[]> {
+    if (!this.db) return []
+    const { data, error } = await this.db
+      .from('transcript_segments')
+      .select('speaker_label, text, started_ms, ended_ms, seq')
+      .eq('meeting_id', meetingId)
+      .order('seq', { ascending: false })
+      .limit(limit)
+    if (error || !data) return []
+    return data
+      .slice()
+      .reverse()
+      .map((s) => ({
+        speakerLabel: s.speaker_label ?? 'Participante',
+        text: s.text,
+        startedMs: s.started_ms,
+        endedMs: s.ended_ms,
+        isFinal: true,
+        seq: s.seq,
+      }))
   }
 }

@@ -35,6 +35,19 @@ export class TranscriptBuffer {
   }
 
   /**
+   * Reidratação pós-restart: repõe os segmentos recentes vindos do Postgres.
+   * Só age em buffer vazio (evita duplicar em reconexão do Recall no meio da
+   * sessão). `seq` continua do máximo carregado — sem colisão com o banco.
+   * `wordsSinceLastTick` permanece 0: material antigo não deve disparar tick.
+   */
+  hydrate(segs: BufferedSegment[]): boolean {
+    if (this.segments.length > 0 || segs.length === 0) return false
+    this.segments = segs
+    this.seq = segs.reduce((max, s) => Math.max(max, s.seq), 0)
+    return true
+  }
+
+  /**
    * Janela recente formatada para o prompt ("Speaker: fala"), limitada por
    * caracteres (~4 chars/token). Transcrição é INPUT NÃO CONFIÁVEL — o chamador
    * é responsável pelo fencing no prompt.

@@ -23,6 +23,14 @@ export class Session {
   private recentSuggestions: string[] = []
   /** timestamp do tick em andamento (null = livre). Watchdog libera após 90s. */
   private tickingSince: number | null = null
+  /** Última atividade (segmento ingerido) — usado pelo sweeper de sessões ociosas. */
+  lastActivityAt = Date.now()
+  /**
+   * Inicialização assíncrona: contexto do copiloto + reidratação pós-restart
+   * (P0-B). `onTick` aguarda esta promise antes de montar o prompt, para não
+   * rodar o 1º tick sem a base carregada (corrida de contexto).
+   */
+  readonly ready: Promise<void>
 
   constructor(
     readonly claims: SessionClaims,
@@ -30,11 +38,25 @@ export class Session {
     private readonly pipeline: CopilotPipeline | null,
   ) {
     this.trigger = new TriggerEngine((reason) => void this.onTick(reason))
-    // carrega o contexto do copiloto uma vez, em background (fail-soft)
-    void this.persistence
-      .loadContext(claims.workspaceId, claims.meetingId)
-      .then((ctx) => this.applyContext(ctx))
-      .catch((e: unknown) => console.error(`[session ${claims.meetingId}] loadContext:`, e))
+    this.ready = this.initialize()
+  }
+
+  /** Carrega contexto do copiloto e reidrata o buffer a partir do Postgres. Fail-soft. */
+  private async initialize(): Promise<void> {
+    try {
+      const ctx = await this.persistence.loadContext(this.claims.workspaceId, this.claims.meetingId)
+      this.applyContext(ctx)
+    } catch (e) {
+      console.error(`[session ${this.claims.meetingId}] loadContext:`, e)
+    }
+    try {
+      const segs = await this.persistence.loadRecentSegments(this.claims.meetingId)
+      if (this.buffer.hydrate(segs)) {
+        console.log(`[session ${this.claims.meetingId}] reidratado: ${segs.length} segmento(s) recente(s)`)
+      }
+    } catch (e) {
+      console.error(`[session ${this.claims.meetingId}] reidratação:`, e)
+    }
   }
 
   /** Ritmo real por nível de interrupção do clone — não é só texto de prompt. */
@@ -55,6 +77,7 @@ export class Session {
 
   /** Entrada bruta do WS do Recall — parse tolerante, fail-soft. */
   async handleRawMessage(raw: string): Promise<void> {
+    this.lastActivityAt = Date.now()
     let json: unknown
     try {
       json = JSON.parse(raw)
@@ -77,6 +100,10 @@ export class Session {
 
   /** Entrada pública de segmento final — usada pelo WS (Recall) e pelo /ingest (extensão). */
   async ingestSegment(seg: TranscriptSegmentInput): Promise<void> {
+    this.lastActivityAt = Date.now()
+    // reidratação ANTES do 1º append: sem isso, áudio chegando durante o
+    // initialize() recomeçava o seq em 1 e duplicava segmentos no banco
+    await this.ready.catch(() => {})
     const turnEnded = this.buffer.isTurnEnd(seg)
     const buffered = this.buffer.append(seg)
 
@@ -125,6 +152,8 @@ export class Session {
     }
     this.tickingSince = Date.now()
     try {
+      // corrida de contexto: garante que loadContext (P0-B) já rodou antes do 1º tick
+      await this.ready.catch(() => {})
       const ctx = this.context ?? {
         expertStyle: null,
         expertName: null,
@@ -157,13 +186,36 @@ export class Session {
   }
 }
 
+/** Sessão sem áudio novo por este tempo é considerada abandonada e encerrada. */
+const IDLE_MS = Number(process.env.SESSION_IDLE_MS) || 1_800_000 // 30min
+
 export class SessionManager {
   private sessions = new Map<string, Session>()
 
   constructor(
     private readonly persistence: Persistence,
     private readonly pipeline: CopilotPipeline | null,
-  ) {}
+  ) {
+    // Sweeper: sem ele, sessões abandonadas (painel fechado sem Encerrar)
+    // acumulavam timer + buffer + canal para sempre → memória estourava →
+    // container reiniciava no meio de reuniões ativas ("do nada parou").
+    setInterval(() => this.sweep(), 60_000)
+  }
+
+  private sweep(): void {
+    let closed = 0
+    const now = Date.now()
+    for (const [meetingId, session] of this.sessions) {
+      if (now - session.lastActivityAt > IDLE_MS) {
+        this.close(meetingId)
+        void this.persistence.endMeeting(meetingId)
+        closed++
+      }
+    }
+    if (closed > 0 || this.sessions.size > 0) {
+      console.log(`[sweeper] ativas=${this.sessions.size} encerradas_por_inatividade=${closed}`)
+    }
+  }
 
   get(meetingId: string): Session | undefined {
     return this.sessions.get(meetingId)
@@ -183,11 +235,16 @@ export class SessionManager {
     const session = this.sessions.get(meetingId)
     if (!session) return
     session.close()
+    this.persistence.closeChannel(meetingId)
     this.sessions.delete(meetingId)
     console.log(`[sessions] fechada ${meetingId} (total: ${this.sessions.size})`)
   }
 
   get count(): number {
     return this.sessions.size
+  }
+
+  get idleMs(): number {
+    return IDLE_MS
   }
 }

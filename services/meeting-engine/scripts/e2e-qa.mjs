@@ -5,7 +5,8 @@ import { SignJWT } from 'jose'
 import WebSocket from 'ws'
 
 const [meetingId, workspaceId, secret] = process.argv.slice(2)
-const WS_URL = 'wss://agencia2020-meet-copilot-engine.ocgogh.easypanel.host/stream'
+// ENGINE_WS=ws://localhost:8123/stream para testar um engine local
+const WS_URL = process.env.ENGINE_WS ?? 'wss://agencia2020-meet-copilot-engine.ocgogh.easypanel.host/stream'
 
 const token = await new SignJWT({ meetingId, workspaceId, selfLabel: 'QA Vendedor' })
   .setProtectedHeader({ alg: 'HS256' })
