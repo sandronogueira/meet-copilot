@@ -62,7 +62,7 @@ export async function createTesterAction(
 
   const workspaceId = await targetWorkspaceId(admin, newUserId)
   if (workspaceId) {
-    await admin.from('audit_logs').insert({
+    await logAudit(admin, {
       workspace_id: workspaceId,
       actor_user_id: actorUserId,
       actor_type: 'user',
@@ -75,6 +75,15 @@ export async function createTesterAction(
 
   revalidatePath('/backoffice')
   return { password }
+}
+
+/** Trilha de auditoria NUNCA falha em silêncio — ação admin sem rastro é risco de governança. */
+async function logAudit(
+  admin: NonNullable<ReturnType<typeof supabaseAdmin>>,
+  entry: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await admin.from('audit_logs').insert(entry)
+  if (error) console.error('[backoffice] auditoria falhou:', error.message, '· action:', entry.action)
 }
 
 const inviteTesterSchema = z.object({
@@ -110,7 +119,7 @@ export async function inviteTesterAction(
 
   const workspaceId = await targetWorkspaceId(admin, newUserId)
   if (workspaceId) {
-    await admin.from('audit_logs').insert({
+    await logAudit(admin, {
       workspace_id: workspaceId,
       actor_user_id: actorUserId,
       actor_type: 'user',
@@ -146,7 +155,7 @@ export async function setUserBanAction(input: z.infer<typeof banSchema>): Promis
 
   const workspaceId = await targetWorkspaceId(admin, parsed.data.userId)
   if (workspaceId) {
-    await admin.from('audit_logs').insert({
+    await logAudit(admin, {
       workspace_id: workspaceId,
       actor_user_id: actorUserId,
       actor_type: 'user',
@@ -182,7 +191,7 @@ export async function resetTesterPasswordAction(
 
   const workspaceId = await targetWorkspaceId(admin, parsed.data.userId)
   if (workspaceId) {
-    await admin.from('audit_logs').insert({
+    await logAudit(admin, {
       workspace_id: workspaceId,
       actor_user_id: actorUserId,
       actor_type: 'user',

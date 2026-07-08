@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   const env = adminEnv()
   if (!env) {
     console.error('[webhook/recall] SUPABASE_SERVICE_ROLE_KEY ausente')
-    return NextResponse.json({ ok: false }, { status: 500 })
+    return NextResponse.json({ ok: false, error: 'webhook não configurado' }, { status: 503 })
   }
 
   const payload = await req.text()
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     }
   } else if (process.env.NODE_ENV === 'production') {
     console.error('[webhook/recall] RECALL_WEBHOOK_SECRET ausente em produção')
-    return NextResponse.json({ ok: false }, { status: 500 })
+    return NextResponse.json({ ok: false, error: 'webhook não configurado' }, { status: 503 })
   }
 
   const parsed = recallStatusEventSchema.safeParse(JSON.parse(payload))

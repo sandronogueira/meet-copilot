@@ -403,7 +403,12 @@ export class Persistence {
       .eq('meeting_id', meetingId)
       .order('seq', { ascending: false })
       .limit(limit)
-    if (error || !data) return []
+    if (error) {
+      // silêncio aqui escondia falha de reidratação pós-restart (achado do QA)
+      console.error('[persistence] loadRecentSegments falhou:', error.message)
+      return []
+    }
+    if (!data) return []
     return data
       .slice()
       .reverse()
