@@ -36,7 +36,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </span>
         <nav style={{ display: 'flex', gap: '1.4rem', fontSize: '0.875rem' }}>
           <a href="/app" style={{ color: 'var(--fg-dim)' }}>
-            Painel
+            Reuniões
           </a>
           <a href="/app/context" style={{ color: 'var(--fg-dim)' }}>
             Bases de conhecimento
