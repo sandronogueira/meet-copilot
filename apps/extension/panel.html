@@ -113,7 +113,16 @@
   <body>
     <header>
       <span class="brand"><span class="dot"></span> Meet Copilot</span>
-      <button id="btn-stop" class="hidden">Encerrar</button>
+      <span style="display: flex; gap: 0.5rem">
+        <button
+          id="btn-collapse"
+          class="hidden"
+          title="Recolhe o painel para compartilhar a tela — a gravação continua. Reabra pelo ícone da extensão."
+        >
+          Recolher
+        </button>
+        <button id="btn-stop" class="hidden">Encerrar</button>
+      </span>
     </header>
 
     <div id="home">

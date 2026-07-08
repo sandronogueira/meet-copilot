@@ -9,12 +9,17 @@ const el = {
   frame: document.getElementById('frame'),
   start: document.getElementById('btn-start'),
   stop: document.getElementById('btn-stop'),
+  collapse: document.getElementById('btn-collapse'),
   login: document.getElementById('btn-login'),
   status: document.getElementById('status'),
   setup: document.getElementById('setup'),
   selBase: document.getElementById('sel-base'),
   selExpert: document.getElementById('sel-expert'),
 }
+
+// Recolher: fecha o side panel inteiro (libera o espaço ao compartilhar a
+// tela). A captura segue no offscreen; reabrir pelo ícone restaura a reunião.
+el.collapse.addEventListener('click', () => window.close())
 
 let appOrigin = DEFAULT_APP_ORIGIN
 // Engine da reunião ativa — o Encerrar avisa o servidor para liberar a sessão
@@ -34,6 +39,7 @@ chrome.storage.local.get('appOrigin').then(async ({ appOrigin: saved }) => {
     el.frame.style.display = 'block'
     el.home.classList.add('hidden')
     el.stop.classList.remove('hidden')
+    el.collapse.classList.remove('hidden')
     return
   }
   void loadOptions()
@@ -189,6 +195,7 @@ el.start.addEventListener('click', async () => {
     el.frame.style.display = 'block'
     el.home.classList.add('hidden')
     el.stop.classList.remove('hidden')
+    el.collapse.classList.remove('hidden')
   } catch (e) {
     setStatus(`Erro: ${String(e)}`)
     el.start.disabled = false
@@ -210,6 +217,7 @@ el.stop.addEventListener('click', async () => {
   el.frame.style.display = 'none'
   el.home.classList.remove('hidden')
   el.stop.classList.add('hidden')
+  el.collapse.classList.add('hidden')
   el.start.disabled = false
   setStatus('Copiloto encerrado.')
 })
