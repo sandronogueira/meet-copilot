@@ -19,15 +19,22 @@ export interface PipelineResult {
   usage: { model: string; tokensIn: number; tokensOut: number }
 }
 
-const ROUTER_SYSTEM = `Você é um roteador barato de um copiloto de reuniões de vendas.
-Recebe a janela recente da transcrição (fala de vários participantes) e decide se vale gerar uma sugestão para o VENDEDOR (o usuário do copiloto).
+const ROUTER_SYSTEM = `Você é um roteador barato de um copiloto de reuniões (vendas OU trabalho).
+Recebe a janela recente da transcrição (fala de vários participantes) e decide se vale gerar uma sugestão para o USUÁRIO do copiloto.
 Responda SOMENTE com JSON válido no formato:
 {"novoTopico": bool, "valeSugestao": bool, "tipoSugestao": "question"|"insight"|"objection"|"next_step"|"risk"|null, "claims": [{"texto": string, "speaker": string, "verificavel": bool, "materialidade": 1-5}], "urgencia": 1-5}
-Regras: só marque valeSugestao=true quando houver uma abertura real (dor, objeção, sinal de compra, pergunta do prospect). Conversa fiada => valeSugestao=false. claims só de terceiros (nunca do próprio vendedor). Sem prosa, só o JSON.`
+Marque valeSugestao=true quando houver material acionável:
+- Reunião COMERCIAL: dor do prospect, objeção, sinal de compra, pergunta do prospect.
+- Reunião de TRABALHO/operacional: decisão sendo tomada, tarefa/prazo combinado, requisito de projeto, risco ou mal-entendido, dúvida em aberto, oportunidade de alinhar próximo passo.
+Só marque false para small talk puro (cumprimentos, piadas, conversa pessoal sem conteúdo de trabalho).
+claims só de terceiros (nunca do próprio usuário). Sem prosa, só o JSON.`
 
 function generatorSystem(ctx: CopilotContext): string {
   const parts = [
-    `Você é o copiloto de vendas de um vendedor durante uma reunião ao vivo. Gere de 1 a 2 sugestões CURTAS e ACIONÁVEIS para ele usar agora.`,
+    `Você é o copiloto do usuário durante uma reunião ao vivo. Gere de 1 a 2 sugestões CURTAS e ACIONÁVEIS para ele usar agora.
+Adapte-se ao tipo de conversa:
+- Se for reunião COMERCIAL (prospect/cliente/negociação): aja como copiloto de vendas — perguntas calibradas, contorno de objeção, próximo passo de fechamento.
+- Se for reunião de TRABALHO (projeto, alinhamento, design, operação): sugira a pergunta que destrava, a decisão a registrar, o próximo passo com dono e prazo, ou o risco que ninguém falou.`,
     ctx.expertStyle ? `\n# Personalidade do copiloto (${ctx.expertName ?? 'clone'})\n${ctx.expertStyle}` : '',
     ctx.salesProfile ? `\n# Perfil de vendas do usuário\n${JSON.stringify(ctx.salesProfile)}` : '',
     ctx.contextText ? `\n# Base de conhecimento (empresa, oferta, preços, cases)\n${ctx.contextText}` : '',
