@@ -81,15 +81,49 @@ export class Anthropic {
   }
 }
 
-/** Extrai o primeiro objeto JSON de um texto (o modelo às vezes embrulha em prosa/```). */
+/**
+ * Extrai o primeiro objeto JSON de um texto (o modelo às vezes embrulha em
+ * prosa/```). Resiliente a TRUNCAMENTO por max_tokens: repara o JSON cortado
+ * (fecha string aberta e balanceia chaves) em vez de descartar a rodada.
+ */
 export function extractJson(text: string): unknown {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/)
   const raw = fenced ? fenced[1]! : text
   const start = raw.indexOf('{')
+  if (start === -1) return null
   const end = raw.lastIndexOf('}')
-  if (start === -1 || end === -1) return null
+  if (end > start) {
+    try {
+      return JSON.parse(raw.slice(start, end + 1))
+    } catch {
+      // cai no reparo abaixo
+    }
+  }
+  return repairTruncatedJson(raw.slice(start))
+}
+
+/** Melhor sugestão truncada do que nenhuma: fecha o que ficou aberto e re-parseia. */
+function repairTruncatedJson(input: string): unknown {
+  let out = input.trimEnd().replace(/,\s*$/, '')
+  const closers: string[] = []
+  let inString = false
+  for (let i = 0; i < out.length; i++) {
+    const c = out[i]
+    if (inString) {
+      if (c === '\\') i++
+      else if (c === '"') inString = false
+      continue
+    }
+    if (c === '"') inString = true
+    else if (c === '{') closers.push('}')
+    else if (c === '[') closers.push(']')
+    else if (c === '}' || c === ']') closers.pop()
+  }
+  if (inString) out += '"'
+  out = out.replace(/,\s*$/, '')
+  while (closers.length) out += closers.pop()
   try {
-    return JSON.parse(raw.slice(start, end + 1))
+    return JSON.parse(out)
   } catch {
     return null
   }

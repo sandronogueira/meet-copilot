@@ -1,6 +1,6 @@
 import {
   routerOutputSchema,
-  generatorOutputSchema,
+  generatedSuggestionSchema,
   type GeneratedSuggestion,
 } from '@meet-copilot/shared'
 import { Anthropic, MODELS, extractJson, type AnthropicUsage } from '../lib/anthropic'
@@ -33,7 +33,7 @@ function generatorSystem(ctx: CopilotContext): string {
     ctx.contextText ? `\n# Base de conhecimento (empresa, oferta, preços, cases)\n${ctx.contextText}` : '',
     `\n# Saída
 Responda SOMENTE JSON: {"suggestions": [{"kind": "question"|"insight"|"objection"|"next_step"|"risk", "content": string, "rationale": string, "contextRefs": []}]}
-content = a frase pronta para o vendedor falar ou fazer (máx ~2 linhas). rationale = por que agora (1 linha). Nunca invente preços fora da base. Sem prosa fora do JSON.`,
+REGRAS RÍGIDAS: no MÁXIMO 2 sugestões. content = a frase pronta para o vendedor falar ou fazer, CURTA (máximo 220 caracteres). rationale = por que agora, 1 frase (máximo 140 caracteres). Nunca invente preços fora da base. Sem prosa fora do JSON.`,
   ]
   return parts.filter(Boolean).join('\n')
 }
@@ -65,7 +65,17 @@ export class CopilotPipeline {
       return empty
     }
     const routed = routerOutputSchema.safeParse(extractJson(routerRes.data.text))
-    if (!routed.success || !routed.data.valeSugestao) {
+    if (!routed.success) {
+      // NUNCA falhar em silêncio: parse-fail é diferente de "não vale sugestão"
+      console.warn(
+        '[pipeline] saída do router não validou:',
+        routed.error.issues.slice(0, 3),
+        '· amostra:',
+        routerRes.data.text.slice(0, 200),
+      )
+      return { suggestions: [], usage: usageOf(MODELS.router, routerRes.data.usage) }
+    }
+    if (!routed.data.valeSugestao) {
       return {
         suggestions: [],
         usage: usageOf(MODELS.router, routerRes.data.usage),
@@ -81,7 +91,7 @@ export class CopilotPipeline {
       model: MODELS.generator,
       system: [{ type: 'text', text: generatorSystem(ctx), cache_control: { type: 'ephemeral' } }],
       userText: fence(window) + antiRepeat,
-      maxTokens: 700,
+      maxTokens: 1024, // 700 truncava o JSON no meio → rodada inteira descartada
       // sonnet-5 não aceita temperature — usa o default do modelo
     })
     if (!genRes.ok) {
@@ -89,14 +99,21 @@ export class CopilotPipeline {
       return { suggestions: [], usage: usageOf(MODELS.router, routerRes.data.usage) }
     }
 
-    const gen = generatorOutputSchema.safeParse(extractJson(genRes.data.text))
-    if (!gen.success) {
-      console.warn('[pipeline] saída do gerador não validou o schema')
+    // Validação POR ITEM: um item ruim (ou truncado) não derruba os demais.
+    const rawOut = extractJson(genRes.data.text) as { suggestions?: unknown[] } | null
+    const items = Array.isArray(rawOut?.suggestions) ? rawOut.suggestions : null
+    if (!items) {
+      console.warn('[pipeline] gerador sem JSON aproveitável · amostra:', genRes.data.text.slice(0, 300))
       return { suggestions: [], usage: usageOf(MODELS.generator, genRes.data.usage) }
     }
+    const suggestions = items
+      .map((i) => generatedSuggestionSchema.safeParse(i))
+      .filter((r): r is { success: true; data: GeneratedSuggestion } => r.success)
+      .map((r) => r.data)
+      .slice(0, 2)
 
     return {
-      suggestions: gen.data.suggestions,
+      suggestions,
       usage: usageOf(MODELS.generator, genRes.data.usage),
     }
   }
