@@ -8,13 +8,16 @@ import { GroqWhisperProvider } from './stt/GroqWhisperProvider'
 import type { STTProvider } from './stt/STTProvider'
 import { CopilotPipeline } from './pipeline/CopilotPipeline'
 import { Finalizer } from './pipeline/Finalizer'
+import { defaultLlmConfig } from './lib/llm-defaults'
 
 const config = loadConfig()
 const persistence = new Persistence(config)
 
 const pipeline = config.ANTHROPIC_API_KEY ? new CopilotPipeline(config.ANTHROPIC_API_KEY) : null
 if (!pipeline) console.warn('[config] ANTHROPIC_API_KEY ausente — copiloto (sugestões) desativado')
-const finalizer = config.ANTHROPIC_API_KEY ? new Finalizer(config.ANTHROPIC_API_KEY) : null
+const finalizer = config.ANTHROPIC_API_KEY
+  ? new Finalizer({ anthropic: config.ANTHROPIC_API_KEY, groq: config.GROQ_API_KEY, nvidia: config.NVIDIA_API_KEY })
+  : null
 
 // Alucinações clássicas do Whisper em áudio silencioso (pt) — descartadas.
 const WHISPER_HALLUCINATIONS =
@@ -157,26 +160,38 @@ async function handleFinalize(
     return
   }
 
+  const cfg =
+    (await persistence.loadLlmConfig(claims.workspaceId, 'post_call')) ??
+    defaultLlmConfig(claims.workspaceId, 'post_call')
+
   if (kind === 'report') {
-    const report = await finalizer.generateReport(transcript)
-    if (!report.ok) {
-      json(res, 502, report)
+    const report = await finalizer.generateReport(cfg, transcript)
+    // Custo já gasto: registra o usage mesmo que o parsing do output falhe adiante.
+    if (report.usage) {
+      void persistence.recordLlmUsage(claims.workspaceId, claims.meetingId, 'post_call', cfg.provider, report.usage)
+    }
+    if (!report.result.ok) {
+      json(res, 502, report.result)
       return
     }
-    await persistence.saveReport(claims.workspaceId, claims.meetingId, report.data)
-    await persistence.broadcastEvent(claims.meetingId, 'report', report.data)
-    json(res, 200, { ok: true, data: report.data })
+    await persistence.saveReport(claims.workspaceId, claims.meetingId, report.result.data)
+    await persistence.broadcastEvent(claims.meetingId, 'report', report.result.data)
+    json(res, 200, { ok: true, data: report.result.data })
     return
   }
 
   // proposal
   const ctx = await persistence.loadContext(claims.workspaceId, claims.meetingId)
-  const proposal = await finalizer.generateProposal(transcript, ctx)
-  if (!proposal.ok) {
-    json(res, 502, proposal)
+  const proposal = await finalizer.generateProposal(cfg, transcript, ctx)
+  if (proposal.usage) {
+    void persistence.recordLlmUsage(claims.workspaceId, claims.meetingId, 'post_call', cfg.provider, proposal.usage)
+  }
+  if (!proposal.result.ok) {
+    json(res, 502, proposal.result)
     return
   }
-  const slug = `${(proposal.data.clienteNome || 'proposta')
+  const content = proposal.result.data
+  const slug = `${(content.clienteNome || 'proposta')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
@@ -187,9 +202,9 @@ async function handleFinalize(
     claims.workspaceId,
     claims.meetingId,
     slug,
-    `Proposta — ${proposal.data.clienteNome || 'Cliente'}`,
-    proposal.data.clienteNome || null,
-    proposal.data,
+    `Proposta — ${content.clienteNome || 'Cliente'}`,
+    content.clienteNome || null,
+    content,
   )
   if (!saved.ok) {
     json(res, 500, saved)

@@ -6,9 +6,15 @@ import {
   type TranscriptSegmentInput,
   type GeneratedSuggestion,
   type Report,
+  type LlmPhase,
+  type LlmProvider,
+  type LlmUsageByRole,
+  type CopilotLlmConfig,
+  copilotLlmConfigSchema,
 } from '@meet-copilot/shared'
 import type { EngineConfig } from '../config'
 import type { BufferedSegment } from '../session/TranscriptBuffer'
+import { estimateCents } from './llm-router'
 
 /** Contexto do copiloto para uma reunião (o QUE o agente sabe + COMO pensa). */
 export interface CopilotContext {
@@ -369,6 +375,86 @@ export class Persistence {
     } catch (e) {
       console.error(`[realtime ${meetingId}] broadcast ${event} falhou:`, e)
     }
+  }
+
+  /**
+   * Registra uso de tokens de LLM em usage_events. FIRE-AND-FORGET: nunca lança,
+   * nunca bloqueia o caller de forma crítica — chamado depois da resposta já
+   * entregue ao usuário. Uma linha por role (executor/advisor) presente em usage.
+   */
+  async recordLlmUsage(
+    workspaceId: string,
+    meetingId: string | null,
+    phase: LlmPhase,
+    provider: LlmProvider,
+    usage: LlmUsageByRole[],
+  ): Promise<void> {
+    if (!this.db) {
+      console.log(`[log-only] llm_usage ${workspaceId} ${meetingId ?? '-'} ${phase}/${provider}:`, usage)
+      return
+    }
+    try {
+      const rows = usage.map((u) => ({
+        workspace_id: workspaceId,
+        meeting_id: meetingId,
+        kind: 'llm_tokens' as const,
+        quantity: u.tokensIn + u.tokensOut,
+        unit: 'tokens',
+        cost_estimate_cents: Math.round(estimateCents([u])),
+        meta: {
+          role: u.role,
+          model: u.model,
+          phase,
+          provider,
+          tokens_in: u.tokensIn,
+          tokens_out: u.tokensOut,
+        },
+      }))
+      const { error } = await this.db.from('usage_events').insert(rows)
+      if (error) console.error('[persistence] recordLlmUsage falhou:', error.message)
+    } catch (e) {
+      console.error('[persistence] recordLlmUsage falhou:', e instanceof Error ? e.message : e)
+    }
+  }
+
+  /**
+   * Config de LLM do workspace para uma fase (pre_call|live|post_call). `maybeSingle()`
+   * (não `.single()`) porque a ausência de linha é o caso normal (workspace sem config
+   * customizada) — não deve logar erro. Fail-soft: qualquer problema (query ou validação
+   * Zod) retorna null e o caller cai no default (`defaultLlmConfig`).
+   */
+  async loadLlmConfig(workspaceId: string, phase: LlmPhase): Promise<CopilotLlmConfig | null> {
+    if (!this.db) return null
+    const { data, error } = await this.db
+      .from('copilot_llm_config')
+      .select(
+        'id, workspace_id, phase, provider, executor_model, advisor_enabled, advisor_model, advisor_max_uses, advisor_max_tokens',
+      )
+      .eq('workspace_id', workspaceId)
+      .eq('phase', phase)
+      .maybeSingle()
+    if (error) {
+      console.warn('[persistence] loadLlmConfig falhou:', error.message)
+      return null
+    }
+    if (!data) return null
+
+    const parsed = copilotLlmConfigSchema.safeParse({
+      id: data.id,
+      workspaceId: data.workspace_id,
+      phase: data.phase,
+      provider: data.provider,
+      executorModel: data.executor_model,
+      advisorEnabled: data.advisor_enabled,
+      advisorModel: data.advisor_model,
+      advisorMaxUses: data.advisor_max_uses,
+      advisorMaxTokens: data.advisor_max_tokens,
+    })
+    if (!parsed.success) {
+      console.warn('[persistence] loadLlmConfig: config inválida no banco, caindo no default:', parsed.error.issues.slice(0, 3))
+      return null
+    }
+    return parsed.data
   }
 
   closeChannel(meetingId: string): void {

@@ -11,6 +11,7 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: optionalEnv,
   GROQ_API_KEY: optionalEnv,
   ANTHROPIC_API_KEY: optionalEnv,
+  NVIDIA_API_KEY: optionalEnv,
 })
 
 export type EngineConfig = z.infer<typeof envSchema>
