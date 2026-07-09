@@ -1,5 +1,5 @@
 import { supabaseServer } from '@/lib/supabase/server'
-import { MeetingLauncher } from './meeting-launcher'
+import { MeetingStartPanel } from './meeting-start-panel'
 
 interface MeetingOverview {
   id: string
@@ -73,29 +73,9 @@ export default async function DashboardPage() {
         <p className="kicker" style={{ marginBottom: '0.8rem' }}>
           Nova reunião
         </p>
-        {/* Caminho primário do piloto: a EXTENSÃO. O modo bot (Recall) fica
-            recolhido — dois caminhos sem ponte confundiam o tester novo (P0 do PO). */}
-        <p style={{ color: 'var(--fg)', lineHeight: 1.6, marginBottom: '0.9rem' }}>
-          Abra sua reunião no <strong>Google Meet</strong> e clique no ícone do Meet Copilot no
-          Chrome — escolha a base e o clone no painel e pronto: transcrição e sugestões em tempo
-          real, sem bot entrando na sala.
-        </p>
-        <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <a className="btn btn-primary btn-inline" href="/app/install" style={{ textDecoration: 'none' }}>
-            Instalar a extensão
-          </a>
-        </div>
-        <details>
-          <summary
-            style={{ cursor: 'pointer', color: 'var(--fg-dim)', fontSize: '0.85rem' }}
-            title="Envia um bot para a sala em vez de usar a extensão — útil quando você não está no Chrome"
-          >
-            Modo alternativo: entrar com bot na reunião (beta)
-          </summary>
-          <div style={{ marginTop: '0.9rem' }}>
-            <MeetingLauncher bases={bases ?? []} />
-          </div>
-        </details>
+        {/* Caminho primário do piloto: a EXTENSÃO. O painel detecta se ela já
+            está instalada e troca o convite por uma confirmação. */}
+        <MeetingStartPanel bases={bases ?? []} />
       </div>
 
       <p className="kicker" style={{ marginBottom: '0.8rem' }}>
