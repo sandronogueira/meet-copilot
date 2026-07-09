@@ -201,6 +201,37 @@ a:hover {
   background: rgba(45, 225, 253, 0.06);
 }
 
+/* Botão "Continuar com o Google" — variante Dark do guia oficial de marca
+   (cores exatas exigidas; não alterar). */
+.google-btn {
+  width: 100%;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #8e918f;
+  background: #131314;
+  color: #e3e3e3;
+  font-family: 'Google Sans Text', Roboto, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.25px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.google-btn:hover:not(:disabled) {
+  background: #1d1e1f;
+}
+.google-btn:active:not(:disabled) {
+  background: #38393a;
+}
+.google-btn svg {
+  flex-shrink: 0;
+}
+
 .btn-inline {
   width: auto;
 }

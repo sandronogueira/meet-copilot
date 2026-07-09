@@ -3,6 +3,7 @@
 import { useActionState } from 'react'
 import Link from 'next/link'
 import { signUpAction, googleAction, type AuthFormState } from '../actions'
+import { GoogleSignInButton } from '../google-signin-button'
 
 export default function SignupPage() {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(signUpAction, {})
@@ -13,9 +14,7 @@ export default function SignupPage() {
       <h2>Crie sua conta</h2>
 
       <form action={googleAction}>
-        <button className="btn btn-ghost" type="submit">
-          Continuar com Google
-        </button>
+        <GoogleSignInButton label="Continuar com o Google" />
       </form>
 
       <div className="auth-divider">ou</div>

@@ -3,6 +3,7 @@
 import { useActionState } from 'react'
 import Link from 'next/link'
 import { signInAction, googleAction, type AuthFormState } from '../actions'
+import { GoogleSignInButton } from '../google-signin-button'
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(signInAction, {})
@@ -13,9 +14,7 @@ export default function LoginPage() {
       <h2>Bem-vindo de volta</h2>
 
       <form action={googleAction}>
-        <button className="btn btn-ghost" type="submit">
-          Continuar com Google
-        </button>
+        <GoogleSignInButton />
       </form>
 
       <div className="auth-divider">ou</div>
