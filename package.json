@@ -2,7 +2,7 @@
   "name": "meet-copilot",
   "private": true,
   "version": "0.1.0",
-  "description": "Meet Copilot — copiloto de IA para reuniões. Entre na reunião sem saber nada e saia como especialista.",
+  "description": "Meet Copilot: copiloto de IA para reuniões. Entre na reunião sem saber nada e saia como especialista.",
   "workspaces": [
     "apps/*",
     "services/*",
@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "typecheck": "tsc -p packages/shared --noEmit && tsc -p services/meeting-engine --noEmit && tsc -p apps/web --noEmit",
-    "test": "bun test apps/web/src",
+    "test": "bun test apps/web/src services/meeting-engine/src",
     "dev:web": "bun run --cwd apps/web dev",
     "dev:engine": "bun run --cwd services/meeting-engine dev"
   },

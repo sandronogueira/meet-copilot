@@ -5,6 +5,7 @@ import {
 } from '@meet-copilot/shared'
 import { Anthropic, MODELS, extractJson, type AnthropicUsage } from '../lib/anthropic'
 import type { CopilotContext } from '../lib/persistence'
+import { REGRA_SEM_TRAVESSAO, semTravessaoEmTudo } from '../lib/sem-travessao'
 
 /**
  * Cérebro do copiloto (F3). Duas camadas de modelo:
@@ -41,6 +42,7 @@ Adapte-se ao tipo de conversa:
     `\n# Saída
 Responda SOMENTE JSON: {"suggestions": [{"kind": "question"|"insight"|"objection"|"next_step"|"risk", "content": string, "rationale": string, "contextRefs": []}]}
 REGRAS RÍGIDAS: no MÁXIMO 2 sugestões. content = a frase pronta para o vendedor falar ou fazer, CURTA (máximo 220 caracteres). rationale = por que agora, 1 frase (máximo 140 caracteres). Nunca invente preços fora da base. Sem prosa fora do JSON.`,
+    REGRA_SEM_TRAVESSAO,
   ]
   return parts.filter(Boolean).join('\n')
 }
@@ -116,7 +118,8 @@ export class CopilotPipeline {
     const suggestions = items
       .map((i) => generatedSuggestionSchema.safeParse(i))
       .filter((r): r is { success: true; data: GeneratedSuggestion } => r.success)
-      .map((r) => r.data)
+      // garantia determinística: travessão não chega ao painel
+      .map((r) => semTravessaoEmTudo(r.data))
       .slice(0, 2)
 
     return {
