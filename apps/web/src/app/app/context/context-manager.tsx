@@ -301,7 +301,7 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
                   {confirmDeleteBase ? (
                     <p className="text-error text-[12px] mb-3">
                       Isso apaga a base &quot;{selected.name}&quot; e {selected.documents.length}{' '}
-                      documento{selected.documents.length === 1 ? '' : 's'} — sem volta.
+                      documento{selected.documents.length === 1 ? '' : 's'}. Não tem volta.
                     </p>
                   ) : null}
                   {selected.description ? (
@@ -429,7 +429,7 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
                       </span>
                     ) : (
                       <span className="text-sm block">
-                        Clique para escolher — PDF, DOCX, XLSX, CSV, MD ou TXT (até 15MB)
+                        Clique para escolher: PDF, DOCX, XLSX, CSV, MD ou TXT (até 15MB)
                       </span>
                     )}
                   </button>
@@ -460,7 +460,7 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
               {/* Lista de documentos */}
               {selected.documents.length === 0 ? (
                 <div className="border border-dashed border-white/15 rounded-lg p-8 text-center text-on-surface-variant text-body-sm">
-                  Base vazia. Adicione o site do cliente, briefings, tabelas — tudo vira conhecimento
+                  Base vazia. Adicione o site do cliente, briefings, tabelas. Tudo vira conhecimento
                   do copiloto.
                 </div>
               ) : (

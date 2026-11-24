@@ -79,7 +79,7 @@ export function OnboardingWizard({ experts, initialFullName, initialSelfLabel, i
     1: {
       kicker: 'Passo 1 · Você',
       title: 'Antes de tudo: quem está na reunião?',
-      lede: 'A IA nunca sugere nada enquanto VOCÊ está falando — pra isso, precisa te reconhecer.',
+      lede: 'A IA nunca sugere nada enquanto VOCÊ está falando. Pra isso, precisa te reconhecer.',
     },
     2: {
       kicker: 'Passo 2 · Sua empresa',
@@ -88,13 +88,13 @@ export function OnboardingWizard({ experts, initialFullName, initialSelfLabel, i
     },
     3: {
       kicker: 'Passo 3 · Sua oferta',
-      title: 'O que você vende — e por quanto',
+      title: 'O que você vende e por quanto',
       lede: 'Preços viram a tabela oficial das suas propostas. A IA nunca inventa valores.',
     },
     4: {
       kicker: 'Passo 4 · Sua abordagem',
       title: 'Como você vende?',
-      lede: 'As sugestões vão soar como VOCÊ vende — não como um robô genérico.',
+      lede: 'As sugestões vão soar como VOCÊ vende, não como um robô genérico.',
     },
     5: {
       kicker: 'Passo 5 · Seu Especialista',
@@ -142,7 +142,7 @@ export function OnboardingWizard({ experts, initialFullName, initialSelfLabel, i
                 onChange={(e) => setSelfLabel(e.target.value)}
                 placeholder="ex.: Sandro Nogueira"
               />
-              <p className="hint">Igual ao seu nome no Meet/Zoom — é assim que a IA sabe quando é você falando.</p>
+              <p className="hint">Igual ao seu nome no Meet/Zoom. É assim que a IA sabe quando é você falando.</p>
             </div>
           </StepBlock>
         )}
@@ -181,7 +181,7 @@ export function OnboardingWizard({ experts, initialFullName, initialSelfLabel, i
                 placeholder="ex.: agência de marketing, clínica, SaaS…"
               />
             </div>
-            {step2Saved ? <p className="form-ok">Salvo — site na fila para leitura completa.</p> : null}
+            {step2Saved ? <p className="form-ok">Salvo. Site na fila para leitura completa.</p> : null}
           </StepBlock>
         )}
 
@@ -216,7 +216,7 @@ export function OnboardingWizard({ experts, initialFullName, initialSelfLabel, i
                 onChange={(e) => setPricingNotes(e.target.value)}
                 placeholder="Pacotes, setup, descontos que você costuma praticar…"
               />
-              <p className="hint">Isso vira a tabela oficial das propostas — dá pra refinar depois em Configurações.</p>
+              <p className="hint">Isso vira a tabela oficial das propostas. Dá pra refinar depois em Configurações.</p>
             </div>
           </StepBlock>
         )}
@@ -321,7 +321,7 @@ export function OnboardingWizard({ experts, initialFullName, initialSelfLabel, i
               ))}
             </div>
             <p className="hint" style={{ marginTop: '1rem' }}>
-              Em breve: especialistas com nome próprio — clones de grandes vendedores.
+              Em breve: especialistas com nome próprio: clones de grandes vendedores.
             </p>
           </StepBlock>
         )}

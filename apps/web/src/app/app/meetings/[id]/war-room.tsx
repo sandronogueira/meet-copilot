@@ -169,7 +169,7 @@ export function WarRoom({
       setFinalizing((cur) => {
         if (cur !== kind) return cur
         setFinalizeError(
-          `A ${label} está demorando mais que o normal — pode aparecer em instantes ou no registro da reunião. Tente de novo se não vier.`,
+          `A ${label} está demorando mais que o normal. Pode aparecer em instantes ou no registro da reunião. Tente de novo se não vier.`,
         )
         return null
       })
@@ -318,7 +318,7 @@ export function WarRoom({
             setDiscreet(true)
             setPickerOpen(false)
           }}
-          title="Modo discreto — esconde transcrição e insights ao compartilhar a tela (a captura continua). Para liberar o espaço todo, feche o painel no X do Chrome: a gravação segue e você reabre pelo ícone da extensão."
+          title="Modo discreto: esconde transcrição e insights ao compartilhar a tela (a captura continua). Para liberar o espaço todo, feche o painel no X do Chrome: a gravação segue e você reabre pelo ícone da extensão."
           className="material-symbols-outlined text-[20px] text-on-surface-variant hover:text-primary-fixed transition-colors"
         >
           visibility_off
@@ -436,7 +436,7 @@ export function WarRoom({
             rel="noreferrer"
             className="block text-primary-fixed text-[13px] underline underline-offset-4"
           >
-            Proposta pronta — clique para abrir
+            Proposta pronta. Clique para abrir
           </a>
         ) : null}
         <div className="flex gap-2">
@@ -700,7 +700,7 @@ function MeetingStage({
         ))}
         <span className="w-11 h-11 rounded-full bg-error grid place-items-center text-on-error material-symbols-outlined">call_end</span>
       </div>
-      <p className="text-center text-[11px] text-outline pb-3">Sua reunião acontece no Google Meet — este é o painel do copiloto ao lado.</p>
+      <p className="text-center text-[11px] text-outline pb-3">Sua reunião acontece no Google Meet. Este é o painel do copiloto ao lado.</p>
     </main>
   )
 }

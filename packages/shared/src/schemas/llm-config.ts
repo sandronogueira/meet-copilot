@@ -35,7 +35,7 @@ export const copilotLlmConfigSchema = z
     if (config.phase === 'live' && config.advisorEnabled) {
       ctx.addIssue({
         code: 'custom',
-        message: 'advisorEnabled não pode ser true quando phase é "live" — o advisor é proibido na fase live por latência.',
+        message: 'advisorEnabled não pode ser true quando phase é "live": o advisor é proibido na fase live por latência.',
         path: ['advisorEnabled'],
       })
     }

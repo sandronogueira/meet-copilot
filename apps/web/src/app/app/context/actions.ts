@@ -108,13 +108,13 @@ const addDocumentSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('url'),
     contextBaseId: z.uuid(),
-    url: z.url('URL inválida — inclua https://'),
+    url: z.url('URL inválida. Inclua https://'),
   }),
   z.object({
     kind: z.literal('text'),
     contextBaseId: z.uuid(),
     title: z.string().min(2, 'Dê um título ao documento').max(120),
-    text: z.string().min(20, 'Conteúdo muito curto — capricha'),
+    text: z.string().min(20, 'Conteúdo muito curto, capricha'),
   }),
 ])
 
@@ -264,7 +264,7 @@ export async function uploadFileDocumentAction(formData: FormData): Promise<Acti
 const updateTextDocSchema = z.object({
   id: z.uuid(),
   title: z.string().min(2, 'Dê um título ao documento').max(120),
-  text: z.string().min(20, 'Conteúdo muito curto — capricha'),
+  text: z.string().min(20, 'Conteúdo muito curto, capricha'),
 })
 
 export async function updateTextDocumentAction(

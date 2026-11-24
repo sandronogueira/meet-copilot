@@ -82,7 +82,7 @@ async function loadOptions() {
     for (const e of experts) {
       const opt = document.createElement('option')
       opt.value = e.id
-      opt.textContent = e.category ? `${e.name} — ${e.category}` : e.name
+      opt.textContent = e.category ? `${e.name} · ${e.category}` : e.name
       if (e.id === activeExpertId) opt.selected = true
       el.selExpert.appendChild(opt)
     }

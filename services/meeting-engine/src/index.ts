@@ -14,7 +14,7 @@ const config = loadConfig()
 const persistence = new Persistence(config)
 
 const pipeline = config.ANTHROPIC_API_KEY ? new CopilotPipeline(config.ANTHROPIC_API_KEY) : null
-if (!pipeline) console.warn('[config] ANTHROPIC_API_KEY ausente — copiloto (sugestões) desativado')
+if (!pipeline) console.warn('[config] ANTHROPIC_API_KEY ausente: copiloto (sugestões) desativado')
 const finalizer = config.ANTHROPIC_API_KEY
   ? new Finalizer({ anthropic: config.ANTHROPIC_API_KEY, groq: config.GROQ_API_KEY, nvidia: config.NVIDIA_API_KEY })
   : null
@@ -30,7 +30,7 @@ const startedAt = Date.now()
 const stt: STTProvider | null = config.GROQ_API_KEY
   ? new GroqWhisperProvider(config.GROQ_API_KEY)
   : null
-if (!stt) console.warn('[config] GROQ_API_KEY ausente — /ingest desativado')
+if (!stt) console.warn('[config] GROQ_API_KEY ausente: /ingest desativado')
 
 const MAX_CHUNK_BYTES = 4 * 1024 * 1024
 
@@ -202,7 +202,7 @@ async function handleFinalize(
     claims.workspaceId,
     claims.meetingId,
     slug,
-    `Proposta — ${content.clienteNome || 'Cliente'}`,
+    `Proposta · ${content.clienteNome || 'Cliente'}`,
     content.clienteNome || null,
     content,
   )

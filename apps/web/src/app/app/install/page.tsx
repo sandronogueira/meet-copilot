@@ -26,7 +26,7 @@ const steps: Step[] = [
   },
   {
     title: 'Permitir o microfone',
-    body: 'Na primeira vez, o Chrome vai pedir permissão de microfone — permita para o copiloto ouvir sua fala.',
+    body: 'Na primeira vez, o Chrome vai pedir permissão de microfone. Permita para o copiloto ouvir sua fala.',
   },
 ]
 

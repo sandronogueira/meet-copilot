@@ -65,7 +65,7 @@ export default async function DashboardPage() {
       </h1>
       {expert ? (
         <p className="muted" style={{ marginBottom: '2rem' }}>
-          Copiloto ativo: <strong style={{ color: 'var(--accent)' }}>{expert.name}</strong> — {expert.tagline}
+          Copiloto ativo: <strong style={{ color: 'var(--accent)' }}>{expert.name}</strong> · {expert.tagline}
         </p>
       ) : null}
 
@@ -161,7 +161,7 @@ export default async function DashboardPage() {
         </div>
       ) : (
         <div className="empty-state">
-          Nenhuma reunião ainda. Cole o link da sua próxima call ali em cima — o resto é com a gente.
+          Nenhuma reunião ainda. Cole o link da sua próxima call ali em cima. O resto é com a gente.
         </div>
       )}
     </div>

@@ -674,7 +674,7 @@ async function runOpenAICompatiblePath(
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
-          content: 'limite de consultas ao advisor atingido — responda agora, sem novas consultas.',
+          content: 'limite de consultas ao advisor atingido. Responda agora, sem novas consultas.',
         })
       }
       toolsDisabled = true
@@ -692,7 +692,7 @@ async function runOpenAICompatiblePath(
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
-          content: 'max advisor uses exceeded — continue without further advice.',
+          content: 'max advisor uses exceeded. Continue without further advice.',
         })
         continue
       }
@@ -709,11 +709,11 @@ async function runOpenAICompatiblePath(
 
       const anthropicKey = params.apiKeys.anthropic
       if (!anthropicKey) {
-        console.warn('[llm-router] advisor solicitado mas ANTHROPIC_API_KEY ausente — pulando')
+        console.warn('[llm-router] advisor solicitado mas ANTHROPIC_API_KEY ausente, pulando')
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
-          content: 'advisor indisponível (sem API key configurada) — continue sem o conselho.',
+          content: 'advisor indisponível (sem API key configurada). Continue sem o conselho.',
         })
         continue
       }
@@ -733,7 +733,7 @@ async function runOpenAICompatiblePath(
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
-          content: 'advisor indisponível no momento — continue sem o conselho.',
+          content: 'advisor indisponível no momento. Continue sem o conselho.',
         })
         continue
       }

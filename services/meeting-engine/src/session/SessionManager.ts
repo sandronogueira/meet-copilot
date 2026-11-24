@@ -71,7 +71,7 @@ export class Session {
     const pace = Session.PACE[ctx.interruption ?? 'moderado']
     this.trigger.updateConfig(pace)
     console.log(
-      `[session ${this.claims.meetingId}] contexto: clone=${ctx.expertName ?? '—'} ritmo=${ctx.interruption ?? 'moderado'} base=${ctx.contextText.length} chars`,
+      `[session ${this.claims.meetingId}] contexto: clone=${ctx.expertName ?? '-'} ritmo=${ctx.interruption ?? 'moderado'} base=${ctx.contextText.length} chars`,
     )
   }
 
@@ -142,13 +142,13 @@ export class Session {
     const window = this.buffer.window()
 
     if (!this.pipeline) {
-      console.log(`[session ${this.claims.meetingId}] tick(${reason}) — pipeline off (sem ANTHROPIC_API_KEY)`)
+      console.log(`[session ${this.claims.meetingId}] tick(${reason}): pipeline off (sem ANTHROPIC_API_KEY)`)
       return
     }
     // evita ticks concorrentes; watchdog libera trava presa (tick > 90s = zumbi)
     if (this.tickingSince !== null) {
       if (Date.now() - this.tickingSince < 90_000) return
-      console.warn(`[session ${this.claims.meetingId}] watchdog: tick preso há >90s — liberando trava`)
+      console.warn(`[session ${this.claims.meetingId}] watchdog: tick preso há >90s, liberando trava`)
     }
     this.tickingSince = Date.now()
     try {

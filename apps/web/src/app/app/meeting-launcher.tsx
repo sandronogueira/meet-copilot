@@ -64,7 +64,7 @@ export function MeetingLauncher({ bases }: { bases: ContextBaseOption[] }) {
       {error ? <p className="form-error">{error}</p> : null}
       <p className="hint" style={{ marginTop: '0.6rem', color: 'var(--fg-faint)', fontSize: '0.8rem' }}>
         A base escolhida define o contexto que o agente carrega nessa reunião. O assistente entra
-        identificado e anuncia a gravação — transparência é regra aqui.
+        identificado e anuncia a gravação. Transparência é regra aqui.
       </p>
     </div>
   )

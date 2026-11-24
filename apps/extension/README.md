@@ -1,4 +1,4 @@
-# Meet Copilot — Extensão Chrome (MV3)
+# Meet Copilot: Extensão Chrome (MV3)
 
 Side panel estilo Claude Extension: captura o áudio da aba do Meet (participantes)
 + microfone (você) e envia em ciclos de ~15s para o meeting-engine, que transcreve
@@ -27,7 +27,7 @@ No console do side panel:
 - `GROQ_API_KEY` no meeting-engine (senão `/ingest` responde 503)
 - `ENGINE_WS_URL/SECRET` na Vercel (o `/api/extension/start` deriva a URL de ingest)
 
-## Distribuição para testers (zip estático — D7)
+## Distribuição para testers (zip estático, D7)
 
 Enquanto não existe conta developer na Chrome Web Store, a extensão é distribuída
 como zip estático em `apps/web/public/downloads/meet-copilot-extension.zip`, baixado
@@ -38,4 +38,4 @@ cd apps/extension
 zip -r ../web/public/downloads/meet-copilot-extension.zip . -x '.*' -x '__MACOSX*' -x '*.DS_Store'
 ```
 
-O zip é commitado — não é gerado em build/deploy.
+O zip é commitado, não é gerado em build/deploy.

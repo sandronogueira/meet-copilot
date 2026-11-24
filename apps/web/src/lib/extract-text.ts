@@ -27,7 +27,7 @@ export async function extractTextFromFile(filename: string, buf: Buffer): Promis
       case 'doc':
         return {
           ok: false,
-          error: 'Formato .doc (Word antigo) não é suportado — salve como .docx e envie de novo.',
+          error: 'Formato .doc (Word antigo) não é suportado. Salve como .docx e envie de novo.',
         }
       case 'xlsx':
       case 'xls':

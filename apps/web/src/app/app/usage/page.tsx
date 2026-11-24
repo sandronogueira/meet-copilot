@@ -152,7 +152,7 @@ export default async function UsagePage() {
         </div>
         {percent > 100 ? (
           <p className="text-error text-[12px] mt-2">
-            Limite do mês estourado — sem bloqueio nesta fase de teste.
+            Limite do mês estourado. Sem bloqueio nesta fase de teste.
           </p>
         ) : percent > 80 ? (
           <p className="text-[12px] mt-2" style={{ color: '#ffd166' }}>

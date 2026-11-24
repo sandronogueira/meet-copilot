@@ -138,7 +138,7 @@ export function CustomCloneForm({ initial }: { initial?: CloneInitial }) {
             </button>
             <p className="text-center font-body-sm text-body-sm text-on-surface-variant mt-3">
               {avatarPreview
-                ? `Foto selecionada — será salva ao ${editing ? 'atualizar' : 'criar'} o clone.`
+                ? `Foto selecionada. Será salva ao ${editing ? 'atualizar' : 'criar'} o clone.`
                 : 'Clique para enviar uma foto (PNG/JPG até 5MB) ou deixe a inicial.'}
             </p>
             {avatarPreview ? (
@@ -248,9 +248,9 @@ export function CustomCloneForm({ initial }: { initial?: CloneInitial }) {
               </div>
               <p className="font-body-sm text-body-sm text-on-surface-variant mt-3">
                 {interruption === 'discreto'
-                  ? 'Sugere pouco — só o essencial, a cada ~1 minuto de conversa.'
+                  ? 'Sugere pouco: só o essencial, a cada ~1 minuto de conversa.'
                   : interruption === 'ativo'
-                    ? 'Sugere com frequência — não deixa passar nenhuma oportunidade.'
+                    ? 'Sugere com frequência: não deixa passar nenhuma oportunidade.'
                     : 'Equilíbrio: sugestões úteis a cada ~25 segundos de conversa.'}
               </p>
             </div>

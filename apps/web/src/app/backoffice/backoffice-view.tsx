@@ -53,7 +53,7 @@ const costFmt = new Intl.NumberFormat('en-US', {
 })
 
 function formatDate(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
@@ -193,7 +193,7 @@ export function BackofficeView({ stats, users }: Props) {
                 {copied ? 'Copiado' : 'Copiar'}
               </button>
             </div>
-            <p className="text-[12px] text-error">Anote — não será exibida de novo.</p>
+            <p className="text-[12px] text-error">Anote: não será exibida de novo.</p>
             <button
               onClick={() => setCreated(null)}
               className="text-[12px] text-on-surface-variant border border-white/10 rounded-md px-3 py-1.5 hover:border-white/30"
@@ -282,7 +282,7 @@ export function BackofficeView({ stats, users }: Props) {
                 <tr key={u.owner_user_id} className="border-b border-white/5">
                   <td className="py-3 pr-4">
                     <div className="flex flex-col">
-                      <span className="text-primary font-medium">{u.owner_name ?? '—'}</span>
+                      <span className="text-primary font-medium">{u.owner_name ?? '-'}</span>
                       <span className="text-xs text-on-surface-variant font-mono">{u.owner_email}</span>
                     </div>
                   </td>

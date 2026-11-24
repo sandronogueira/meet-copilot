@@ -39,12 +39,12 @@ const DELIVERABLE: Record<Deliverable, { failed: string; dropped: string }> = {
   report: {
     failed: 'Não foi possível gerar o relatório agora. Tente de novo em instantes.',
     dropped:
-      'A conexão caiu durante a geração. O relatório pode ficar pronto em instantes — recarregue a página para conferir.',
+      'A conexão caiu durante a geração. O relatório pode ficar pronto em instantes. Recarregue a página para conferir.',
   },
   proposal: {
     failed: 'Não foi possível gerar a proposta agora. Tente de novo em instantes.',
     dropped:
-      'A conexão caiu durante a geração. A proposta pode ficar pronta em instantes — recarregue a página para conferir.',
+      'A conexão caiu durante a geração. A proposta pode ficar pronta em instantes. Recarregue a página para conferir.',
   },
 }
 
@@ -277,7 +277,7 @@ export function RegistroView({ data, engineUrl, controlToken }: Props) {
           ) : canGenerate ? (
             <>
               <p className="text-on-surface-variant text-body-sm mb-4">
-                Ainda não há relatório desta reunião. Gere agora a partir da transcrição — leva cerca de meio
+                Ainda não há relatório desta reunião. Gere agora a partir da transcrição. Leva cerca de meio
                 minuto.
               </p>
               <button

@@ -89,7 +89,7 @@ function Section({ s }: { s: ProposalSection }) {
           <ul className="space-y-3">
             {s.itens.map((item, i) => (
               <li key={i} className="flex gap-3">
-                <span className="text-primary-fixed shrink-0 mt-0.5">—</span>
+                <span className="text-primary-fixed shrink-0 mt-0.5">›</span>
                 <div>
                   <span className="text-primary font-medium">{item.titulo}</span>
                   {item.descricao ? (
@@ -133,7 +133,7 @@ function Section({ s }: { s: ProposalSection }) {
                 </span>
                 <div>
                   <span className="text-primary font-medium">{e.titulo}</span>
-                  <span className="text-on-surface-variant text-body-sm"> — {e.duracao}</span>
+                  <span className="text-on-surface-variant text-body-sm"> · {e.duracao}</span>
                   {e.descricao ? <p className="text-body-sm text-on-surface-variant">{e.descricao}</p> : null}
                 </div>
               </li>

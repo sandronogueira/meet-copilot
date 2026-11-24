@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) {
-    return NextResponse.json(err('UNAUTHORIZED', 'Sessão expirada — faça login'), { status: 401 })
+    return NextResponse.json(err('UNAUTHORIZED', 'Sessão expirada. Faça login de novo.'), { status: 401 })
   }
 
   const body: unknown = await req.json().catch(() => null)
@@ -90,7 +90,7 @@ export async function POST(req: Request) {
     .eq('id', workspaceId)
     .single()
   const settings = (ws?.settings ?? {}) as { bot_name?: string }
-  const botName = settings.bot_name ?? 'Meet Copilot — Assistente IA (gravando)'
+  const botName = settings.bot_name ?? 'Meet Copilot · Assistente IA (gravando)'
 
   const { data: meeting, error: insertError } = await supabase
     .from('meetings')

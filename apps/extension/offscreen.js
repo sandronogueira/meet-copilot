@@ -49,7 +49,7 @@ async function start({ streamId, ingestUrl, ingestToken }) {
   }
 
   if (!micStream && !tabStream) {
-    console.error('[mc] nenhuma trilha disponível — captura abortada')
+    console.error('[mc] nenhuma trilha disponível, captura abortada')
     return
   }
 
@@ -97,7 +97,7 @@ function cycleRecorder(stream, track) {
       const peak = meter.consumePeak()
       if (!e.data || e.data.size === 0) return
       if (peak < VOICE_RMS_THRESHOLD) {
-        console.log(`[mc] ${track}: ciclo silencioso (rms ${peak.toFixed(4)}) — descartado`)
+        console.log(`[mc] ${track}: ciclo silencioso (rms ${peak.toFixed(4)}), descartado`)
         return
       }
       upload(e.data, track, chunkStartedMs)

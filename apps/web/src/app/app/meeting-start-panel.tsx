@@ -38,7 +38,7 @@ export function MeetingStartPanel({ bases }: { bases: ContextBaseOption[] }) {
         <>
           <p style={{ color: 'var(--fg)', lineHeight: 1.6, marginBottom: '0.4rem' }}>
             <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Extensão instalada.</span> Abra
-            sua reunião no <strong>Google Meet</strong> e clique no ícone do Meet Copilot no Chrome —
+            sua reunião no <strong>Google Meet</strong> e clique no ícone do Meet Copilot no Chrome,
             escolha a base e o clone no painel e pronto.
           </p>
           <p style={{ marginBottom: '1rem' }}>
@@ -51,7 +51,7 @@ export function MeetingStartPanel({ bases }: { bases: ContextBaseOption[] }) {
         <>
           <p style={{ color: 'var(--fg)', lineHeight: 1.6, marginBottom: '0.9rem' }}>
             Abra sua reunião no <strong>Google Meet</strong> e clique no ícone do Meet Copilot no
-            Chrome — escolha a base e o clone no painel e pronto: transcrição e sugestões em tempo
+            Chrome, escolha a base e o clone no painel e pronto: transcrição e sugestões em tempo
             real, sem bot entrando na sala.
           </p>
           <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -65,7 +65,7 @@ export function MeetingStartPanel({ bases }: { bases: ContextBaseOption[] }) {
       <details>
         <summary
           style={{ cursor: 'pointer', color: 'var(--fg-dim)', fontSize: '0.85rem' }}
-          title="Envia um bot para a sala em vez de usar a extensão — útil quando você não está no Chrome"
+          title="Envia um bot para a sala em vez de usar a extensão. Útil quando você não está no Chrome"
         >
           Modo alternativo: entrar com bot na reunião (beta)
         </summary>

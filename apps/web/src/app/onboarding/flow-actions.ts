@@ -31,8 +31,8 @@ async function ctx() {
 const profileSchema = z.object({
   fullName: z.string().min(2, 'Conta pra gente seu nome'),
   selfLabel: z.string().min(2, 'Como você aparece nas reuniões?'),
-  siteUrl: z.union([z.url('URL inválida — inclua https://'), z.literal('')]),
-  description: z.string().min(20, 'Descreva a empresa em 2–3 frases'),
+  siteUrl: z.union([z.url('URL inválida. Inclua https://'), z.literal('')]),
+  description: z.string().min(20, 'Descreva a empresa em 2 a 3 frases'),
   segment: z.string().min(2, 'Qual o segmento?'),
   methodology: z.string().min(2),
   tone: z.string().min(2),

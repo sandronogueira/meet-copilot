@@ -198,8 +198,8 @@ function PerfilStep({
   return (
     <div>
       <StepHeader
-        kicker={`ETAPA 1 DE 4 — PERFIL`}
-        title="Quem está na reunião — e como você vende?"
+        kicker={`ETAPA 1 DE 4 · PERFIL`}
+        title="Quem está na reunião e como você vende?"
         subtitle="A IA usa isso para reconhecer você e adaptar as sugestões à sua abordagem."
       />
       <Card>
@@ -314,7 +314,7 @@ function ConhecimentoStep({
   return (
     <div>
       <StepHeader
-        kicker="ETAPA 2 DE 4 — CONHECIMENTO"
+        kicker="ETAPA 2 DE 4 · CONHECIMENTO"
         title="O que o seu copiloto deve saber?"
         subtitle="Adicione sites, documentos ou textos. Na hora da call, você escolhe qual base o agente carrega."
       />
@@ -397,7 +397,7 @@ function ConhecimentoStep({
             {error && <p className="text-error text-body-sm mb-4">{error}</p>}
             {selected.documents.length === 0 ? (
               <div className="border border-dashed border-white/15 rounded-lg p-8 text-center text-on-surface-variant text-body-sm">
-                Base vazia. Adicione o site do cliente, briefings, tabelas — tudo vira conhecimento do copiloto.
+                Base vazia. Adicione o site do cliente, briefings, tabelas. Tudo vira conhecimento do copiloto.
               </div>
             ) : (
               <div className="flex flex-col gap-4">
@@ -491,7 +491,7 @@ function ClonesStep({
   return (
     <div>
       <StepHeader
-        kicker="ETAPA 3 DE 4 — CLONES DE PERSONALIDADE"
+        kicker="ETAPA 3 DE 4 · CLONES DE PERSONALIDADE"
         title="Dê uma personalidade ao seu agente"
         subtitle="Escolha um clone de especialista ou uma metodologia institucional para guiar o comportamento do seu Copilot."
       />
@@ -604,7 +604,7 @@ function ConfigStep({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null)
   return (
     <div>
-      <StepHeader kicker="ETAPA 4 DE 4 — CONFIGURAÇÕES" title="Tudo pronto para a sua primeira reunião" subtitle="Seu copiloto já sabe quem você é, o que sua empresa vende e com que personalidade agir." />
+      <StepHeader kicker="ETAPA 4 DE 4 · CONFIGURAÇÕES" title="Tudo pronto para a sua primeira reunião" subtitle="Seu copiloto já sabe quem você é, o que sua empresa vende e com que personalidade agir." />
       <Card>
         <div className="flex flex-col gap-4">
           {[

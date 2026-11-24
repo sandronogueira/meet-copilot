@@ -26,7 +26,7 @@ export default async function PanelPage({
     const verified = await jwtVerify(ptoken, new TextEncoder().encode(secret))
     payload = verified.payload as typeof payload
   } catch {
-    return <PanelError msg="Sessão do painel expirou — reinicie o copiloto pela extensão" />
+    return <PanelError msg="Sessão do painel expirou. Reinicie o copiloto pela extensão" />
   }
 
   if (payload.scope !== 'panel' || payload.meetingId !== id) {

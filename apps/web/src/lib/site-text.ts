@@ -286,7 +286,7 @@ export async function readSiteText(rawUrl: string): Promise<SiteTextResult> {
   try {
     start = new URL(rawUrl.trim())
   } catch {
-    return { ok: false, error: 'Endereço inválido — inclua https://' }
+    return { ok: false, error: 'Endereço inválido. Inclua https://' }
   }
 
   const main = await fetchPage(start, MAIN_PAGE_TIMEOUT_MS)

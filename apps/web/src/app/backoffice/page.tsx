@@ -9,7 +9,7 @@ export default async function BackofficePage() {
   if (!admin) {
     return (
       <p className="text-error text-body-sm">
-        Supabase admin indisponível — falta SUPABASE_SERVICE_ROLE_KEY no ambiente.
+        Supabase admin indisponível: falta SUPABASE_SERVICE_ROLE_KEY no ambiente.
       </p>
     )
   }

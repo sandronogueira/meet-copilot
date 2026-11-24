@@ -63,7 +63,7 @@ export async function uploadExpertAvatarAction(
   if (!(file instanceof File) || file.size === 0) return { error: 'Selecione uma imagem' }
   if (file.size > MAX_AVATAR_BYTES) return { error: 'Imagem acima de 5MB' }
   if (!/^image\/(png|jpe?g|webp|gif|avif)$/.test(file.type)) {
-    return { error: 'Formato inválido — envie PNG, JPG, WEBP, GIF ou AVIF' }
+    return { error: 'Formato inválido. Envie PNG, JPG, WEBP, GIF ou AVIF' }
   }
 
   const { workspaceId } = await ctx()
@@ -102,7 +102,7 @@ function composeStylePrompt(
     role ? `Você atua como ${role}.` : '',
     description,
     `Tom de voz predominante: ${tone}.`,
-    `Nível de interrupção: ${interruption} — ${
+    `Nível de interrupção: ${interruption}, ou seja, ${
       interruption === 'discreto'
         ? 'só fale quando for muito relevante.'
         : interruption === 'ativo'

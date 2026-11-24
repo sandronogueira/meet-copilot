@@ -77,8 +77,8 @@ export async function saveStep1(input: z.infer<typeof step1Schema>): Promise<Ste
 // ── Passo 2: sua empresa (alimenta a Base de Contexto) ──────────────────────
 
 const step2Schema = z.object({
-  siteUrl: z.union([z.url('URL inválida — inclua https://'), z.literal('')]),
-  description: z.string().min(30, 'Capricha: pelo menos 2–3 frases sobre a empresa'),
+  siteUrl: z.union([z.url('URL inválida. Inclua https://'), z.literal('')]),
+  description: z.string().min(30, 'Capricha: pelo menos 2 a 3 frases sobre a empresa'),
   segment: z.string().min(2, 'Qual o segmento?'),
 })
 
@@ -149,7 +149,7 @@ export async function saveStep3(input: z.infer<typeof step3Schema>): Promise<Ste
     .single()
 
   if (base) {
-    const raw = `Produtos/serviços:\n${parsed.data.products}\n\nTicket médio: ${parsed.data.ticket}\n\nPreços/observações:\n${parsed.data.pricingNotes || '—'}`
+    const raw = `Produtos/serviços:\n${parsed.data.products}\n\nTicket médio: ${parsed.data.ticket}\n\nPreços/observações:\n${parsed.data.pricingNotes || '-'}`
     const { error } = await supabase.from('documents').insert({
       workspace_id: workspaceId,
       context_base_id: base.id,

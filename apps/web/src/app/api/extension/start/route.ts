@@ -109,7 +109,7 @@ export async function POST(req: Request) {
     ? await supabase.from('sales_experts').select('name').eq('id', expertId).single()
     : { data: null }
 
-  const title = `${baseName ?? 'Reunião'} — ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Fortaleza' })}`
+  const title = `${baseName ?? 'Reunião'} · ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Fortaleza' })}`
 
   const { data: meeting, error: insertError } = await supabase
     .from('meetings')

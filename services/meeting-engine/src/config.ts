@@ -23,7 +23,7 @@ export function loadConfig(): EngineConfig {
     process.exit(1)
   }
   if (!parsed.data.SUPABASE_URL || !parsed.data.SUPABASE_SERVICE_ROLE_KEY) {
-    console.warn('[config] Supabase ausente — rodando em modo log-only (sem persistência)')
+    console.warn('[config] Supabase ausente: rodando em modo log-only (sem persistência)')
   }
   return parsed.data
 }
