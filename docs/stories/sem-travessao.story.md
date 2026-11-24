@@ -1,6 +1,6 @@
 # Story: Sem travessão em texto nenhum do produto
 
-**Status:** InReview (site e extensão publicados em 2026-11-24; motor e banco aguardam decisão do Sandro)
+**Status:** InReview (site, extensão, motor e banco publicados em 2026-11-24; falta ver a IA escrevendo sem travessão numa reunião real)
 **Origem:** pedido direto do Sandro em 2026-11-24: "tira o [travessão] de tudo" / "vício de IA"
 **Executor:** Fable 5.2
 
@@ -25,8 +25,8 @@ Comentários de código não entram na regra (ninguém de fora lê).
 - [x] Filtro determinístico + regra nos prompts para o que a IA gera
 - [x] Migração 0011 para as perguntas de exemplo dos clones nativos
 - [x] Publicar o site (Vercel)
-- [ ] Deploy do motor no EasyPanel (leva junto o roteador multi-provider `e04f94e`)
-- [ ] Aplicar a migração 0011 no banco de produção (SQL Editor do Supabase)
+- [x] Deploy do motor no EasyPanel (levou junto o roteador multi-provider `e04f94e`), autorizado pelo Sandro
+- [x] Migração 0011 aplicada no banco de produção (SQL Editor do Supabase), autorizada pelo Sandro
 
 ## File List
 
@@ -63,10 +63,14 @@ Comentários de código não entram na regra (ninguém de fora lê).
 2. `bun run typecheck` PASS · `bun run test` **25 pass, 0 fail** (7 testes novos do filtro) · `NODE_ENV=production next build` PASS.
 3. Site publicado: commit `91a4e2f`, deploy `meet-copilot-41dx6t8hv-…`, apelidado para `meet.2020agency.co`. Com a sessão do Sandro (somente leitura), `/onboarding` mostra "ETAPA 1 DE 4 · PERFIL", "Quem está na reunião e como você vende?" e **zero** travessões na página inteira. O zip baixado de produção já traz os textos novos.
 
-**Não verificado:** a regra e o filtro rodando no motor de produção (dependem do Deploy no EasyPanel) e a migração 0011 no banco.
+4. Motor novo testado localmente com a IA real antes de publicar (commit `739320f`, config padrão: Anthropic + Sonnet): relatório em 7,7s, proposta com as 7 seções em 15,5s, 2 sugestões ao vivo em 4,9s. **Zero travessões** nos três. Custo: três chamadas de IA.
+5. Motor publicado no EasyPanel: o histórico mostra o deploy do commit "feat(engine): IA não escreve travessão…" no topo; `/health` voltou com tempo no ar de 62s (antes 3.720s), `supabase: true`, `copilot: true`. Fumaça em produção sem custo: `/experts` devolve os 8 clones com token e 403 sem; `/report` e `/proposal` de uma reunião inexistente respondem 400 `EMPTY`.
+6. Banco: consulta antes mostrou 2 clones com travessão nas perguntas de exemplo ("O Desafiador" e "A Estrategista") e nenhum travessão em tagline, bio ou style_prompt dos 8 clones. Depois da 0011: os dois sem travessão, nenhuma linha restante.
 
-## Pendências que dependem do Sandro
+**Não verificado:** um relatório ou proposta gerado em produção a partir de uma reunião real (o banco novo ainda não tem reunião com transcrição). O caminho foi exercitado só até a checagem de transcrição vazia.
 
-- **Motor:** enquanto não houver Deploy no EasyPanel, sugestões, relatórios e propostas gerados pela IA ainda podem sair com travessão. O Deploy leva junto o roteador multi-provider (`e04f94e`), que nunca rodou em produção.
-- **Banco:** as perguntas de exemplo de dois clones nativos ainda têm travessão em produção até a 0011 ser aplicada.
+## Observações
+
+- **Roteador multi-provider (`e04f94e`) agora está em produção.** Foi junto no Deploy. Com a configuração padrão ele se comportou como antes no teste local; configurações por workspace (Groq, NVIDIA, advisor) continuam sem uso real.
 - **Extensão já instalada:** só troca os textos se for reinstalada a partir do zip novo (o funcionamento é idêntico).
+- **Voltar atrás, se preciso:** o EasyPanel publica o que está no `main`; reverter o motor exige reverter os commits no GitHub e dar Deploy de novo.

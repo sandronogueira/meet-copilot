@@ -92,7 +92,7 @@ antes de qualquer alteração.
 - O projeto Vercel `meet-copilot` **não é ligado ao GitHub** — o deploy é por CLI. Publicado a partir de uma cópia limpa do commit (`git archive 47d0f13`), para não enviar arquivos soltos da máquina: `vercel deploy --prod --yes --scope sandro-nogueiras-projects`.
 - 1ª tentativa: **falhou no build**, em `next/font` (`src/app/layout.tsx`, não alterado nesta story): o Google Fonts devolveu um endereço de fonte sem extensão e o loader do Next 15.5.20 quebrou (`Cannot read properties of null (reading '1')`). Produção não foi afetada. 2ª tentativa, minutos depois, sem mudar nada: **READY**, `meet-copilot-f7wu7w4qt-…vercel.app`, apelidada para `meet.2020agency.co`.
 - Conferido no ar: `/login` 200; `/onboarding`, `/app` e `/app/context` → 307 para o login sem sessão; zip da extensão 200. Com a sessão do Sandro (somente leitura): `/onboarding` carrega com o texto novo do campo do site. O Perfil dele ainda não tinha sido salvo, então a página abriu na etapa 1, como esperado — **a retomada em produção ainda precisa da conferência abaixo**.
-- Engine: **não foi feito Deploy no EasyPanel**; produção segue em `f643e41`. Atenção: como o GitHub agora tem `e04f94e`, o próximo Deploy no EasyPanel leva o roteador multi-provider junto.
+- Engine: nesta publicação **não foi feito Deploy no EasyPanel**. Atualização do mesmo dia: o motor foi publicado depois, no commit `739320f`, pela story `sem-travessao` (levou junto o roteador multi-provider `e04f94e`).
 
 ## Depois de publicar (conferência manual, logado)
 
