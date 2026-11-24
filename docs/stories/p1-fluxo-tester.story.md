@@ -1,6 +1,6 @@
 # Story: Correções P1 do fluxo do tester — retomar cadastro, ler o site, relatório pós-reunião
 
-**Status:** InReview (implementado e verificado localmente; **não commitado, não publicado**)
+**Status:** InReview (**publicado em produção em 2026-11-24**, commit `47d0f13`; falta a conferência manual do Sandro, logado)
 **Origem:** `docs/qa/po-flow-validation.md` §3, itens P1-1, P1-2 e P1-3 (Pax/PO, julho de 2026)
 **Executor:** Fable 5.2 (2026-11-24)
 
@@ -37,7 +37,7 @@ antes de qualquer alteração.
 - [x] P1-3 — gerar relatório/proposta pelo Registro, depois da reunião
 - [x] Testes do leitor de site e do progresso do cadastro
 - [x] Typecheck, testes, build e conferência das telas
-- [ ] Commit, push e deploy na Vercel (aguardando o Sandro pedir)
+- [x] Commit, push e deploy na Vercel (pedido pelo Sandro em 2026-11-24)
 - [ ] Conferência manual em produção, logado (ver "Depois de publicar")
 
 ## Critérios de aceite (do relatório de QA)
@@ -85,6 +85,15 @@ antes de qualquer alteração.
 
 **Não verificado localmente:** o fluxo logado de ponta a ponta contra o banco real (exige a senha/sessão do Sandro) e a geração de relatório contra o engine real (o teste de tela usou um engine falso).
 
+## Publicação (2026-11-24)
+
+- Commit `47d0f13` em `main`, enviado junto com `e04f94e` (roteador multi-provider do engine, que estava parado localmente). CI do GitHub (typecheck): **success**.
+- Ficaram de fora do commit, como estavam: `supabase/migrations/0004_expert_gallery.sql`, `docs/ARQUITETURA.md` e as pastas/arquivos não rastreados.
+- O projeto Vercel `meet-copilot` **não é ligado ao GitHub** — o deploy é por CLI. Publicado a partir de uma cópia limpa do commit (`git archive 47d0f13`), para não enviar arquivos soltos da máquina: `vercel deploy --prod --yes --scope sandro-nogueiras-projects`.
+- 1ª tentativa: **falhou no build**, em `next/font` (`src/app/layout.tsx`, não alterado nesta story): o Google Fonts devolveu um endereço de fonte sem extensão e o loader do Next 15.5.20 quebrou (`Cannot read properties of null (reading '1')`). Produção não foi afetada. 2ª tentativa, minutos depois, sem mudar nada: **READY**, `meet-copilot-f7wu7w4qt-…vercel.app`, apelidada para `meet.2020agency.co`.
+- Conferido no ar: `/login` 200; `/onboarding`, `/app` e `/app/context` → 307 para o login sem sessão; zip da extensão 200. Com a sessão do Sandro (somente leitura): `/onboarding` carrega com o texto novo do campo do site. O Perfil dele ainda não tinha sido salvo, então a página abriu na etapa 1, como esperado — **a retomada em produção ainda precisa da conferência abaixo**.
+- Engine: **não foi feito Deploy no EasyPanel**; produção segue em `f643e41`. Atenção: como o GitHub agora tem `e04f94e`, o próximo Deploy no EasyPanel leva o roteador multi-provider junto.
+
 ## Depois de publicar (conferência manual, logado)
 
 1. Em `/onboarding`: preencher o Perfil com o site, clicar "Continuar", dar F5 → deve voltar na etapa 2; clicar em "Perfil" na lateral → campos preenchidos.
@@ -99,4 +108,5 @@ antes de qualquer alteração.
 - `apps/web/src/app/onboarding/wizard.tsx` (código morto, P2-2 do QA) ainda carrega o texto antigo "Vamos ler o site inteiro".
 - Com o preflight do Tailwind desligado, botões sem cor de fundo aparecem cinza (padrão do navegador) em várias telas; os botões novos usam `bg-transparent`.
 - Leitor de site: a checagem de endereço e a requisição resolvem o DNS em momentos diferentes (risco residual de *DNS rebinding*); fixar o IP exigiria um dispatcher próprio.
+- O build na Vercel pode falhar de forma intermitente em `next/font/google` (ver "Publicação"); hospedar as três fontes no próprio projeto (`next/font/local`) elimina a dependência do Google na hora do build.
 - Relatório automático pós-reunião no modo robô (item 9b do QA) e `RECALL_WEBHOOK_SECRET` ausente na Vercel continuam pendentes.
