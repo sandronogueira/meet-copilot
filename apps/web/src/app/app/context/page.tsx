@@ -2,6 +2,9 @@ import { redirect } from 'next/navigation'
 import { supabaseServer } from '@/lib/supabase/server'
 import { ContextManager, type BaseWithDocs } from './context-manager'
 
+// As actions desta página leem sites (até ~10s de rede de terceiros).
+export const maxDuration = 30
+
 export default async function ContextPage() {
   const supabase = await supabaseServer()
   const {
@@ -24,7 +27,7 @@ export default async function ContextPage() {
       .order('created_at'),
     supabase
       .from('documents')
-      .select('id, context_base_id, source_type, title, source_url, status, created_at, meta')
+      .select('id, context_base_id, source_type, title, source_url, status, error_detail, created_at, meta')
       .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false }),
   ])

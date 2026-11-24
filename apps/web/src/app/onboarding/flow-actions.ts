@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { supabaseServer } from '@/lib/supabase/server'
+import { readSiteText, siteDocumentFields } from '@/lib/site-text'
+import { ONBOARDING_SITE_TITLE, ONBOARDING_STEPS, type OnboardingStep } from './progress'
 
 export interface FlowResult {
   error?: string
@@ -69,35 +71,13 @@ export async function saveProfileStep(input: z.infer<typeof profileSchema>): Pro
       .eq('context_base_id', base.id)
       .eq('source_type', 'onboarding_profile')
 
-    const docs: Array<Record<string, unknown>> = [
-      {
-        workspace_id: workspaceId,
-        context_base_id: base.id,
-        source_type: 'onboarding_profile',
-        title: 'Perfil da empresa (onboarding)',
-        meta: { raw_text: d.description, segment: d.segment },
-      },
-    ]
-    if (d.siteUrl) {
-      const { data: existingUrl } = await supabase
-        .from('documents')
-        .select('id')
-        .eq('workspace_id', workspaceId)
-        .eq('context_base_id', base.id)
-        .eq('source_url', d.siteUrl)
-        .maybeSingle()
-      if (!existingUrl) {
-        docs.push({
-          workspace_id: workspaceId,
-          context_base_id: base.id,
-          source_type: 'url',
-          title: 'Site da empresa',
-          source_url: d.siteUrl,
-          meta: {},
-        })
-      }
-    }
-    await supabase.from('documents').insert(docs)
+    await supabase.from('documents').insert({
+      workspace_id: workspaceId,
+      context_base_id: base.id,
+      source_type: 'onboarding_profile',
+      title: 'Perfil da empresa (onboarding)',
+      meta: { raw_text: d.description, segment: d.segment },
+    })
   }
 
   // sales_profile (abordagem) → prefixo cacheado do gerador
@@ -121,6 +101,63 @@ export async function saveProfileStep(input: z.infer<typeof profileSchema>): Pro
     })
     .eq('id', workspaceId)
   if (wsErr) return { error: wsErr.message }
+
+  // Site da empresa — por ÚLTIMO, depois de o Perfil já estar salvo: a leitura
+  // depende de um servidor de terceiros e pode levar alguns segundos.
+  // Fail-soft: site fora do ar NÃO trava o onboarding; o documento fica com
+  // status 'error' + motivo, e o passo Conhecimento oferece "Tentar de novo".
+  if (base && d.siteUrl) {
+    const { data: existingUrl } = await supabase
+      .from('documents')
+      .select('id, status')
+      .eq('workspace_id', workspaceId)
+      .eq('context_base_id', base.id)
+      .eq('source_url', d.siteUrl)
+      .order('created_at')
+      .limit(1)
+      .maybeSingle()
+
+    // já lido com sucesso → nada a fazer (voltar ao Perfil e salvar de novo é instantâneo)
+    if (existingUrl?.status !== 'ready') {
+      const fields = siteDocumentFields(await readSiteText(d.siteUrl))
+      if (existingUrl) {
+        await supabase.from('documents').update(fields).eq('id', existingUrl.id).eq('workspace_id', workspaceId)
+      } else {
+        await supabase.from('documents').insert({
+          workspace_id: workspaceId,
+          context_base_id: base.id,
+          source_type: 'url',
+          title: ONBOARDING_SITE_TITLE,
+          source_url: d.siteUrl,
+          ...fields,
+        })
+      }
+    }
+  }
+
+  return {}
+}
+
+const stepSchema = z.enum(ONBOARDING_STEPS)
+
+/**
+ * Guarda em qual etapa do onboarding o usuário está. É o que permite retomar
+ * de onde parou depois de um F5 ou de a conexão cair (lido por
+ * `resolveInitialStep` na página).
+ */
+export async function saveOnboardingStepAction(step: OnboardingStep): Promise<FlowResult> {
+  const parsed = stepSchema.safeParse(step)
+  if (!parsed.success) return { error: 'Etapa inválida' }
+
+  const { supabase, workspaceId } = await ctx()
+  const { data: ws } = await supabase.from('workspaces').select('onboarding_state').eq('id', workspaceId).single()
+  const state = (ws?.onboarding_state ?? {}) as Record<string, unknown>
+
+  const { error } = await supabase
+    .from('workspaces')
+    .update({ onboarding_state: { ...state, step: parsed.data } })
+    .eq('id', workspaceId)
+  if (error) return { error: error.message }
 
   return {}
 }

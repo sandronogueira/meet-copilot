@@ -1,13 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
-import { SignJWT } from 'jose'
 import { supabaseServer } from '@/lib/supabase/server'
+import { engineHttpUrl, signControlToken } from '@/lib/engine-control'
 import { WarRoom } from './war-room'
-
-function engineHttpUrl(): string | null {
-  const ws = process.env.ENGINE_WS_URL
-  if (!ws) return null
-  return ws.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/stream$/, '')
-}
 
 export default async function MeetingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -47,14 +41,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
     : { data: null }
 
   // Token de controle (relatório/proposta) — mesmo secret do engine
-  let controlToken: string | null = null
-  const secret = process.env.ENGINE_WS_SECRET
-  if (secret) {
-    controlToken = await new SignJWT({ meetingId: meeting.id, workspaceId: meeting.workspace_id })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setExpirationTime('12h')
-      .sign(new TextEncoder().encode(secret))
-  }
+  const controlToken = await signControlToken(meeting.id, meeting.workspace_id)
 
   return (
     <WarRoom

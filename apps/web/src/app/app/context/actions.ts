@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { supabaseServer } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { extractTextFromFile } from '@/lib/extract-text'
+import { readSiteText, siteDocumentFields } from '@/lib/site-text'
 
 export interface ActionResult {
   error?: string
@@ -134,37 +135,70 @@ export async function addDocumentAction(
     .single()
   if (!base) return { error: 'Base não encontrada' }
 
-  const doc: {
-    workspace_id: string
-    context_base_id: string
-    source_type: string
-    title: string
-    source_url: string | null
-    meta: Record<string, unknown>
-  } =
-    parsed.data.kind === 'url'
-      ? {
-          workspace_id: workspaceId,
-          context_base_id: base.id as string,
-          source_type: 'url',
-          title: parsed.data.url.replace(/^https?:\/\//, '').slice(0, 120),
-          source_url: parsed.data.url,
-          meta: {},
-        }
-      : {
-          workspace_id: workspaceId,
-          context_base_id: base.id as string,
-          source_type: 'text',
-          title: parsed.data.title,
-          source_url: null,
-          meta: { raw_text: parsed.data.text },
-        }
+  if (parsed.data.kind === 'url') {
+    // O site é lido AQUI (mesmo padrão do upload de arquivo): o texto vai para
+    // meta.raw_text, pronto para o engine usar na próxima reunião. Se não der
+    // para ler, nada é gravado — o usuário vê o motivo e corrige na hora, em
+    // vez de ficar com um documento "na fila" que nunca seria processado.
+    const site = await readSiteText(parsed.data.url)
+    if (!site.ok) return { error: site.error }
 
-  const { error } = await supabase.from('documents').insert(doc)
+    const { error } = await supabase.from('documents').insert({
+      workspace_id: workspaceId,
+      context_base_id: base.id as string,
+      source_type: 'url',
+      title: parsed.data.url.replace(/^https?:\/\//, '').slice(0, 120),
+      source_url: parsed.data.url,
+      ...siteDocumentFields(site),
+    })
+    if (error) return { error: error.message }
+
+    revalidatePath('/app/context')
+    return {}
+  }
+
+  const { error } = await supabase.from('documents').insert({
+    workspace_id: workspaceId,
+    context_base_id: base.id as string,
+    source_type: 'text',
+    title: parsed.data.title,
+    source_url: null,
+    meta: { raw_text: parsed.data.text },
+  })
   if (error) return { error: error.message }
 
   revalidatePath('/app/context')
   return {}
+}
+
+/**
+ * Lê (ou tenta ler de novo) um documento de site que ainda não foi lido —
+ * cobre os que ficaram "na fila" antes de a leitura existir e os que deram
+ * erro. Na falha, o motivo fica gravado no documento E volta para a tela.
+ */
+export async function readUrlDocumentAction(documentId: string): Promise<ActionResult> {
+  if (!z.uuid().safeParse(documentId).success) return { error: 'id inválido' }
+
+  const { supabase, workspaceId } = await ctx()
+  const { data: doc } = await supabase
+    .from('documents')
+    .select('id, source_url')
+    .eq('id', documentId)
+    .eq('workspace_id', workspaceId)
+    .eq('source_type', 'url')
+    .single()
+  if (!doc?.source_url) return { error: 'Documento não encontrado' }
+
+  const site = await readSiteText(doc.source_url as string)
+  const { error } = await supabase
+    .from('documents')
+    .update(siteDocumentFields(site))
+    .eq('id', doc.id)
+    .eq('workspace_id', workspaceId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/app/context')
+  return site.ok ? {} : { error: site.error }
 }
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024

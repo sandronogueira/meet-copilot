@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "typecheck": "tsc -p packages/shared --noEmit && tsc -p services/meeting-engine --noEmit && tsc -p apps/web --noEmit",
+    "test": "bun test apps/web/src",
     "dev:web": "bun run --cwd apps/web dev",
     "dev:engine": "bun run --cwd services/meeting-engine dev"
   },

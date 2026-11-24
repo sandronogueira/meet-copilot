@@ -1,5 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import { supabaseServer } from '@/lib/supabase/server'
+import { engineHttpUrl, signControlToken } from '@/lib/engine-control'
 import { RegistroView, type RegistroData } from './registro-view'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,7 @@ export default async function RegistroPage({ params }: { params: Promise<{ id: s
 
   const { data: meeting } = await supabase
     .from('meetings')
-    .select('id, title, status, created_at, meeting_url, settings')
+    .select('id, title, status, created_at, meeting_url, settings, workspace_id')
     .eq('id', id)
     .single()
   if (!meeting) notFound()
@@ -59,5 +60,10 @@ export default async function RegistroPage({ params }: { params: Promise<{ id: s
     proposals: (proposals ?? []) as RegistroData['proposals'],
   }
 
-  return <RegistroView data={data} />
+  // Relatório/proposta podem ser gerados DEPOIS da reunião: o engine lê a
+  // transcrição do banco, não depende de sessão ao vivo. A reunião acima já
+  // passou pelo RLS (é do workspace do usuário), então o token pode ser assinado.
+  const controlToken = await signControlToken(meeting.id as string, meeting.workspace_id as string)
+
+  return <RegistroView data={data} engineUrl={engineHttpUrl()} controlToken={controlToken} />
 }

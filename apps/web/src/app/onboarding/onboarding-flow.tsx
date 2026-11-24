@@ -2,10 +2,16 @@
 
 import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { saveProfileStep, completeOnboardingAction } from './flow-actions'
-import { createBaseAction, addDocumentAction, deleteDocumentAction } from '../app/context/actions'
+import { saveProfileStep, saveOnboardingStepAction, completeOnboardingAction } from './flow-actions'
+import {
+  createBaseAction,
+  addDocumentAction,
+  deleteDocumentAction,
+  readUrlDocumentAction,
+} from '../app/context/actions'
 import { selectExpertAction, createCustomExpertAction } from '../app/experts/actions'
 import { signOutAction } from '../(auth)/actions'
+import type { OnboardingStep, SavedProfile } from './progress'
 
 // ── tipos vindos do server ────────────────────────────────────────────────────
 export interface FlowDoc {
@@ -13,7 +19,9 @@ export interface FlowDoc {
   context_base_id: string
   source_type: string
   title: string
+  source_url: string | null
   status: string
+  error_detail: string | null
 }
 export interface FlowBase {
   id: string
@@ -34,9 +42,16 @@ export interface FlowProps {
   bases: FlowBase[]
   experts: FlowExpert[]
   selectedExpertId: string | null
+  /** Etapa em que o usuário estava (retomada após F5/queda de conexão). */
+  initialStep: OnboardingStep
+  /** Campos do Perfil já salvos no banco — voltam preenchidos. */
+  savedProfile: SavedProfile
 }
 
-type Step = 'perfil' | 'conhecimento' | 'clones' | 'config'
+/** Rascunho do passo Perfil: o que veio do banco + o que está sendo digitado. */
+type ProfileDraft = SavedProfile & { fullName: string; selfLabel: string }
+
+type Step = OnboardingStep
 const STEPS: { key: Step; label: string; icon: string }[] = [
   { key: 'perfil', label: 'Perfil', icon: 'person' },
   { key: 'conhecimento', label: 'Conhecimento', icon: 'database' },
@@ -51,8 +66,22 @@ const HIGHLIGHT = new Set(['Alta Performance', 'Seu Modelo'])
 
 export function OnboardingFlow(props: FlowProps) {
   const router = useRouter()
-  const [step, setStep] = useState<Step>('perfil')
+  const [step, setStep] = useState<Step>(props.initialStep)
+  // O rascunho do Perfil mora AQUI (não dentro do passo): assim ele sobrevive
+  // à troca de etapa e nasce do que já está salvo no banco.
+  const [profile, setProfile] = useState<ProfileDraft>({
+    ...props.savedProfile,
+    fullName: props.fullName,
+    selfLabel: props.selfLabel || props.fullName,
+  })
   const stepIndex = STEPS.findIndex((s) => s.key === step)
+
+  function goTo(next: Step) {
+    setStep(next)
+    // Fire-and-forget: registra a etapa para a retomada. Se falhar, o pior
+    // caso é reabrir uma etapa antes — nunca trava a navegação.
+    void saveOnboardingStepAction(next).catch(() => undefined)
+  }
 
   return (
     <div className="min-h-screen bg-surface-container-lowest text-on-surface relative">
@@ -83,7 +112,7 @@ export function OnboardingFlow(props: FlowProps) {
               <button
                 key={s.key}
                 type="button"
-                onClick={() => i <= stepIndex && setStep(s.key)}
+                onClick={() => i <= stepIndex && i !== stepIndex && goTo(s.key)}
                 className={`rounded-lg p-4 text-left flex items-center gap-3 transition-all ${
                   state === 'current'
                     ? 'border border-primary-fixed bg-surface-container-highest text-primary-fixed glow-active'
@@ -107,13 +136,21 @@ export function OnboardingFlow(props: FlowProps) {
         {/* Conteúdo do passo */}
         <main className="flex-1 min-w-0">
           {step === 'perfil' && (
-            <PerfilStep {...props} onDone={() => setStep('conhecimento')} />
+            <PerfilStep
+              draft={profile}
+              onChange={(patch) => setProfile((prev) => ({ ...prev, ...patch }))}
+              onDone={() => {
+                goTo('conhecimento')
+                // traz o documento do site (lido agora) para a lista do próximo passo
+                router.refresh()
+              }}
+            />
           )}
           {step === 'conhecimento' && (
             <ConhecimentoStep
               bases={props.bases}
-              onBack={() => setStep('perfil')}
-              onNext={() => setStep('clones')}
+              onBack={() => goTo('perfil')}
+              onNext={() => goTo('clones')}
               refresh={() => router.refresh()}
             />
           )}
@@ -121,12 +158,12 @@ export function OnboardingFlow(props: FlowProps) {
             <ClonesStep
               experts={props.experts}
               selectedId={props.selectedExpertId}
-              onBack={() => setStep('conhecimento')}
-              onNext={() => setStep('config')}
+              onBack={() => goTo('conhecimento')}
+              onNext={() => goTo('config')}
               refresh={() => router.refresh()}
             />
           )}
-          {step === 'config' && <ConfigStep onBack={() => setStep('clones')} />}
+          {step === 'config' && <ConfigStep onBack={() => goTo('clones')} />}
         </main>
       </div>
     </div>
@@ -135,41 +172,24 @@ export function OnboardingFlow(props: FlowProps) {
 
 // ── Passo Perfil ──────────────────────────────────────────────────────────────
 function PerfilStep({
-  fullName,
-  selfLabel,
+  draft,
+  onChange,
   onDone,
 }: {
-  fullName: string
-  selfLabel: string
+  draft: ProfileDraft
+  onChange: (patch: Partial<ProfileDraft>) => void
   onDone: () => void
 }) {
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [name, setName] = useState(fullName)
-  const [self, setSelf] = useState(selfLabel || fullName)
-  const [siteUrl, setSiteUrl] = useState('')
-  const [description, setDescription] = useState('')
-  const [segment, setSegment] = useState('')
-  const [methodology, setMethodology] = useState('Consultiva')
-  const [tone, setTone] = useState('Equilibrado')
-  const [objections, setObjections] = useState<string[]>([])
   const [objDraft, setObjDraft] = useState('')
-  const [icp, setIcp] = useState('')
+  const { siteUrl, description, segment, methodology, tone, objections, icp } = draft
+  const setObjections = (next: string[]) => onChange({ objections: next })
 
   function save() {
     setError(null)
     start(async () => {
-      const r = await saveProfileStep({
-        fullName: name,
-        selfLabel: self,
-        siteUrl,
-        description,
-        segment,
-        methodology,
-        tone,
-        objections,
-        icp,
-      })
+      const r = await saveProfileStep({ ...draft, siteUrl: siteUrl.trim() })
       if (r.error) setError(r.error)
       else onDone()
     })
@@ -184,25 +204,28 @@ function PerfilStep({
       />
       <Card>
         <Field label="Seu nome completo">
-          <Input value={name} onChange={setName} />
+          <Input value={draft.fullName} onChange={(v) => onChange({ fullName: v })} />
         </Field>
         <Field label="Como você aparece nas reuniões" hint="Igual ao seu nome no Meet/Zoom.">
-          <Input value={self} onChange={setSelf} placeholder="ex.: Sandro Nogueira" />
+          <Input value={draft.selfLabel} onChange={(v) => onChange({ selfLabel: v })} placeholder="ex.: Sandro Nogueira" />
         </Field>
-        <Field label="Site da empresa (opcional)" hint="Vamos ler o site e absorver serviços e diferenciais.">
-          <Input value={siteUrl} onChange={setSiteUrl} placeholder="https://suaempresa.com.br" />
+        <Field
+          label="Site da empresa (opcional)"
+          hint="Ao continuar, lemos as páginas principais do site e absorvemos serviços e diferenciais."
+        >
+          <Input value={siteUrl} onChange={(v) => onChange({ siteUrl: v })} placeholder="https://suaempresa.com.br" />
         </Field>
         <Field label="Descreva sua empresa como descreveria a um cliente">
-          <Textarea value={description} onChange={setDescription} placeholder="O que fazem, para quem, e o que os torna diferentes…" />
+          <Textarea value={description} onChange={(v) => onChange({ description: v })} placeholder="O que fazem, para quem, e o que os torna diferentes…" />
         </Field>
         <Field label="Segmento">
-          <Input value={segment} onChange={setSegment} placeholder="ex.: agência de marketing, clínica, SaaS…" />
+          <Input value={segment} onChange={(v) => onChange({ segment: v })} placeholder="ex.: agência de marketing, clínica, SaaS…" />
         </Field>
         <Field label="Metodologia que mais se parece com você">
-          <ChipRow options={METHODOLOGIES} value={methodology} onPick={setMethodology} />
+          <ChipRow options={METHODOLOGIES} value={methodology} onPick={(v) => onChange({ methodology: v })} />
         </Field>
         <Field label="Tom com o cliente">
-          <ChipRow options={TONES} value={tone} onPick={setTone} />
+          <ChipRow options={TONES} value={tone} onPick={(v) => onChange({ tone: v })} />
         </Field>
         <Field label="Objeções que você mais escuta">
           <div className="flex flex-wrap gap-2 mb-2">
@@ -233,11 +256,15 @@ function PerfilStep({
           />
         </Field>
         <Field label="Seu cliente ideal (ICP)">
-          <Textarea value={icp} onChange={setIcp} placeholder="ex.: clínicas de estética com 2+ unidades faturando acima de R$ 200k/mês…" />
+          <Textarea value={icp} onChange={(v) => onChange({ icp: v })} placeholder="ex.: clínicas de estética com 2+ unidades faturando acima de R$ 200k/mês…" />
         </Field>
         {error && <p className="text-error text-body-sm">{error}</p>}
       </Card>
-      <StepNav rightLabel={pending ? 'Salvando…' : 'Continuar'} onRight={save} rightDisabled={pending} />
+      <StepNav
+        rightLabel={pending ? (siteUrl.trim() ? 'Salvando e lendo o site…' : 'Salvando…') : 'Continuar'}
+        onRight={save}
+        rightDisabled={pending}
+      />
     </div>
   )
 }
@@ -263,6 +290,8 @@ function ConhecimentoStep({
   const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
   const [text, setText] = useState('')
+  // qual documento de site está sendo lido agora (só para o rótulo do botão)
+  const [readingId, setReadingId] = useState<string | null>(null)
 
   const selected = bases.find((b) => b.id === selectedId) ?? bases[0] ?? null
 
@@ -271,10 +300,9 @@ function ConhecimentoStep({
     start(async () => {
       const r = await fn()
       if (r.error) setError(r.error)
-      else {
-        ok?.()
-        refresh()
-      }
+      else ok?.()
+      // sempre atualiza a lista: uma leitura de site que falha também muda o status
+      refresh()
     })
   }
 
@@ -350,7 +378,7 @@ function ConhecimentoStep({
                   onClick={() => run(() => addDocumentAction({ kind: 'url', contextBaseId: selected.id, url }), () => setUrl(''))}
                   className="bg-surface-tint text-on-primary font-medium rounded-lg px-6 py-2 text-sm shrink-0 disabled:opacity-50"
                 >
-                  Adicionar
+                  {pending && url ? 'Lendo o site…' : 'Adicionar'}
                 </button>
               </div>
             ) : (
@@ -373,23 +401,48 @@ function ConhecimentoStep({
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-                {selected.documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between pb-4 border-b border-white/5">
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-medium text-primary truncate">{doc.title}</span>
-                      <span className="text-xs text-on-surface-variant font-mono mt-1">
-                        {TYPE[doc.source_type] ?? doc.source_type} · {STATUS[doc.status] ?? doc.status}
-                      </span>
+                {selected.documents.map((doc) => {
+                  // site que ainda não foi lido (na fila ou com erro) ganha o botão de leitura
+                  const unreadSite = doc.source_type === 'url' && doc.status !== 'ready'
+                  return (
+                    <div key={doc.id} className="flex items-center justify-between gap-3 pb-4 border-b border-white/5">
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-medium text-primary truncate">{doc.title}</span>
+                        <span className="text-xs text-on-surface-variant font-mono mt-1">
+                          {TYPE[doc.source_type] ?? doc.source_type} · {STATUS[doc.status] ?? doc.status}
+                        </span>
+                        {unreadSite && doc.error_detail ? (
+                          <span className="text-xs text-error mt-1">{doc.error_detail}</span>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {unreadSite ? (
+                          <button
+                            disabled={pending}
+                            onClick={() => {
+                              setReadingId(doc.id)
+                              run(() => readUrlDocumentAction(doc.id))
+                            }}
+                            className="text-xs bg-transparent border border-primary-fixed/40 rounded-md px-3 py-1.5 text-primary-fixed hover:bg-primary-fixed/10 disabled:opacity-50"
+                          >
+                            {pending && readingId === doc.id
+                              ? 'Lendo…'
+                              : doc.status === 'error'
+                                ? 'Tentar de novo'
+                                : 'Ler agora'}
+                          </button>
+                        ) : null}
+                        <button
+                          disabled={pending}
+                          onClick={() => run(() => deleteDocumentAction(doc.id))}
+                          className="text-xs border border-white/10 rounded-md px-3 py-1.5 text-on-surface-variant hover:text-error hover:border-error/50"
+                        >
+                          Remover
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      disabled={pending}
-                      onClick={() => run(() => deleteDocumentAction(doc.id))}
-                      className="text-xs border border-white/10 rounded-md px-3 py-1.5 text-on-surface-variant hover:text-error hover:border-error/50 shrink-0"
-                    >
-                      Remover
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

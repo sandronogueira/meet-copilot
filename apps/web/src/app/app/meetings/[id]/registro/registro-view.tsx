@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { updateMeetingTitleAction, updateReportSummaryAction } from '../../actions'
 
 export interface RegistroData {
@@ -31,7 +32,31 @@ function fmtDate(iso: string): string {
   })
 }
 
-export function RegistroView({ data }: { data: RegistroData }) {
+type Deliverable = 'report' | 'proposal'
+
+// textos por entregável (relatório é masculino, proposta é feminino)
+const DELIVERABLE: Record<Deliverable, { failed: string; dropped: string }> = {
+  report: {
+    failed: 'Não foi possível gerar o relatório agora. Tente de novo em instantes.',
+    dropped:
+      'A conexão caiu durante a geração. O relatório pode ficar pronto em instantes — recarregue a página para conferir.',
+  },
+  proposal: {
+    failed: 'Não foi possível gerar a proposta agora. Tente de novo em instantes.',
+    dropped:
+      'A conexão caiu durante a geração. A proposta pode ficar pronta em instantes — recarregue a página para conferir.',
+  },
+}
+
+interface Props {
+  data: RegistroData
+  /** URL http(s) do meeting-engine + token de controle (report/proposal) */
+  engineUrl: string | null
+  controlToken: string | null
+}
+
+export function RegistroView({ data, engineUrl, controlToken }: Props) {
+  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -40,6 +65,53 @@ export function RegistroView({ data }: { data: RegistroData }) {
 
   const [summary, setSummary] = useState(data.report?.summary ?? '')
   const [editingSummary, setEditingSummary] = useState(false)
+
+  // Geração pós-reunião (relatório/proposta) direto desta página
+  const [generating, setGenerating] = useState<Deliverable | null>(null)
+  const [generateError, setGenerateError] = useState<{ kind: Deliverable; message: string } | null>(null)
+  const canGenerate = Boolean(engineUrl && controlToken)
+  const hasTranscript = data.segments.length > 0
+
+  // O relatório pode nascer com esta página aberta (botão "Gerar relatório"):
+  // quando o servidor devolve um resumo novo, o texto editável acompanha.
+  const serverSummary = data.report?.summary ?? ''
+  useEffect(() => {
+    setSummary(serverSummary)
+  }, [serverSummary])
+
+  /**
+   * Gera relatório ou proposta DEPOIS da reunião. O engine lê a transcrição do
+   * banco e grava o resultado lá; aqui basta recarregar os dados da página.
+   */
+  async function generate(kind: Deliverable) {
+    if (!canGenerate || generating) return
+    setGenerating(kind)
+    setGenerateError(null)
+    try {
+      const res = await fetch(`${engineUrl}/${kind}?token=${encodeURIComponent(controlToken!)}`, {
+        method: 'POST',
+      })
+      const json = (await res.json()) as { ok: boolean; error?: { code?: string; message?: string } }
+      if (!json.ok) {
+        const code = json.error?.code
+        setGenerateError({
+          kind,
+          message:
+            code === 'EMPTY' && json.error?.message
+              ? json.error.message // "ainda não há transcrição suficiente" — já vem em linguagem de usuário
+              : code === 'TOKEN'
+                ? 'Esta página ficou aberta por muito tempo. Recarregue e tente de novo.'
+                : DELIVERABLE[kind].failed,
+        })
+      }
+    } catch {
+      // A geração leva 10–30s: se a conexão cair no meio, o engine ainda conclui e grava.
+      setGenerateError({ kind, message: DELIVERABLE[kind].dropped })
+    } finally {
+      setGenerating(null)
+      router.refresh()
+    }
+  }
 
   function saveTitle() {
     setError(null)
@@ -196,9 +268,36 @@ export function RegistroView({ data }: { data: RegistroData }) {
           <ReportSection title="Próximos passos" items={data.report.next_steps} />
         </section>
       ) : (
-        <div className="border border-dashed border-white/15 rounded-xl p-6 text-on-surface-variant text-body-sm mb-8">
-          Sem relatório ainda — gere pelo painel da reunião com &quot;Finalizar com Relatório&quot;.
-        </div>
+        <section id="resumo" className="border border-dashed border-white/15 rounded-xl p-6 mb-8 scroll-mt-24">
+          <h2 className="font-headline-lg text-xl text-primary mb-2">Relatório da reunião</h2>
+          {!hasTranscript ? (
+            <p className="text-on-surface-variant text-body-sm">
+              Esta sessão não tem transcrição, então não há o que resumir.
+            </p>
+          ) : canGenerate ? (
+            <>
+              <p className="text-on-surface-variant text-body-sm mb-4">
+                Ainda não há relatório desta reunião. Gere agora a partir da transcrição — leva cerca de meio
+                minuto.
+              </p>
+              <button
+                onClick={() => generate('report')}
+                disabled={generating !== null}
+                className="bg-primary-fixed text-on-primary-fixed font-bold rounded-lg px-5 py-2.5 text-sm disabled:opacity-50"
+              >
+                {generating === 'report' ? 'Gerando relatório…' : 'Gerar relatório'}
+              </button>
+            </>
+          ) : (
+            <p className="text-on-surface-variant text-body-sm">
+              Ainda não há relatório desta reunião, e a geração está indisponível no momento. Tente de novo mais
+              tarde.
+            </p>
+          )}
+          {generateError?.kind === 'report' ? (
+            <p className="text-error text-body-sm mt-3">{generateError.message}</p>
+          ) : null}
+        </section>
       )}
 
       {/* Propostas */}
@@ -220,6 +319,23 @@ export function RegistroView({ data }: { data: RegistroData }) {
               </li>
             ))}
           </ul>
+        </section>
+      ) : hasTranscript && canGenerate ? (
+        <section className="border border-dashed border-white/15 rounded-xl p-6 mb-8">
+          <h2 className="font-headline-lg text-xl text-primary mb-2">Proposta comercial</h2>
+          <p className="text-on-surface-variant text-body-sm mb-4">
+            Transforme esta reunião em uma proposta com página pública para enviar ao cliente.
+          </p>
+          <button
+            onClick={() => generate('proposal')}
+            disabled={generating !== null}
+            className="bg-transparent border border-outline-variant text-on-surface font-medium rounded-lg px-5 py-2.5 text-sm hover:border-primary-fixed hover:text-primary-fixed transition-colors disabled:opacity-50"
+          >
+            {generating === 'proposal' ? 'Gerando proposta…' : 'Gerar proposta'}
+          </button>
+          {generateError?.kind === 'proposal' ? (
+            <p className="text-error text-body-sm mt-3">{generateError.message}</p>
+          ) : null}
         </section>
       ) : null}
 

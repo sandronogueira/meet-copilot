@@ -9,6 +9,7 @@ import {
   updateTextDocumentAction,
   deleteDocumentAction,
   uploadFileDocumentAction,
+  readUrlDocumentAction,
 } from './actions'
 
 const ACCEPTED_FILES = '.pdf,.docx,.doc,.xlsx,.xls,.csv,.md,.markdown,.txt'
@@ -20,6 +21,7 @@ export interface BaseDoc {
   title: string
   source_url: string | null
   status: string
+  error_detail?: string | null
   created_at: string
   meta?: { raw_text?: string } | null
 }
@@ -75,6 +77,9 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
   const [editingDocId, setEditingDocId] = useState<string | null>(null)
   const [editDocTitle, setEditDocTitle] = useState('')
   const [editDocText, setEditDocText] = useState('')
+
+  // qual documento de site está sendo lido agora (só para o rótulo do botão)
+  const [readingDocId, setReadingDocId] = useState<string | null>(null)
 
   const selected = bases.find((b) => b.id === selectedId) ?? bases[0] ?? null
 
@@ -360,7 +365,7 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
                     }
                     className="bg-surface-tint text-on-primary font-medium rounded-lg px-6 py-2 text-sm hover:shadow-[0_0_15px_rgba(0,221,221,0.3)] transition-all disabled:opacity-50"
                   >
-                    Adicionar
+                    {pending && docUrl ? 'Lendo o site…' : 'Adicionar'}
                   </button>
                 </div>
               ) : docKind === 'text' ? (
@@ -512,8 +517,28 @@ export function ContextManager({ bases }: { bases: BaseWithDocs[] }) {
                             {TYPE_LABEL[doc.source_type] ?? doc.source_type} ·{' '}
                             {STATUS_LABEL[doc.status] ?? doc.status}
                           </span>
+                          {doc.source_type === 'url' && doc.status !== 'ready' && doc.error_detail ? (
+                            <span className="text-xs text-error mt-1">{doc.error_detail}</span>
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
+                          {/* site que ainda não foi lido (na fila ou com erro) */}
+                          {doc.source_type === 'url' && doc.status !== 'ready' ? (
+                            <button
+                              disabled={pending}
+                              onClick={() => {
+                                setReadingDocId(doc.id)
+                                run(() => readUrlDocumentAction(doc.id))
+                              }}
+                              className="text-xs bg-transparent border border-primary-fixed/40 rounded-md px-3 py-1.5 text-primary-fixed hover:bg-primary-fixed/10 transition-colors disabled:opacity-50"
+                            >
+                              {pending && readingDocId === doc.id
+                                ? 'Lendo…'
+                                : doc.status === 'error'
+                                  ? 'Tentar de novo'
+                                  : 'Ler agora'}
+                            </button>
+                          ) : null}
                           {doc.source_type === 'text' ? (
                             <button
                               disabled={pending}
