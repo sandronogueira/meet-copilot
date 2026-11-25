@@ -1,6 +1,6 @@
 # Story: Chave de IA do cliente ("use a IA da sua empresa")
 
-**Status:** InReview (implementado e verificado localmente; **não commitado, não publicado**)
+**Status:** Publicado em 2026-11-25 (banco, site e motor no commit `3ae7869`). Falta o teste com chave real de um cliente.
 **Origem:** pedido do Sandro em 2026-11-24: fluxo simples para o usuário da CapBox usar a própria IA. Pergunta "como deve ser a própria IA do cliente?", resposta: "Chave do cliente".
 **Executor:** Fable 5.2
 
@@ -35,8 +35,8 @@ usar a própria conta de IA, para o consumo sair da conta do cliente e não da a
 - [x] Motor: usar a chave do cliente nas sugestões ao vivo, no relatório e na proposta, com plano B
 - [x] Backoffice: coluna "IA" e vínculo de equipe
 - [x] Typecheck, testes, build e conferência das telas
-- [ ] Aplicar a migração 0012 no banco de produção
-- [ ] Publicar o site (Vercel) e o motor (EasyPanel)
+- [x] Aplicar a migração 0012 no banco de produção
+- [x] Publicar o site (Vercel) e o motor (EasyPanel)
 - [ ] Primeira chave real colada por um cliente e reunião de teste
 
 ## File List
@@ -66,6 +66,17 @@ usar a própria conta de IA, para o consumo sair da conta do cliente e não da a
 
 **Não verificado:** nada disso rodou contra o banco real (a tabela ainda não existe em produção), nem o
 motor usando de fato a chave de um cliente numa reunião, nem a troca para o plano B ao vivo.
+
+## Publicação (2026-11-25)
+
+Feita com o "Sim, publicar" do Sandro, depois de revisão do código por outra sessão (typecheck, 38 testes e build PASS).
+
+1. **Banco:** migração 0012 aplicada pelo SQL Editor do projeto `geqbwfwevtizvmmwogob`. Conferido na hora: RLS ligado, 0 policies, 0 acessos para `anon` e `authenticated`, 7 privilégios para `service_role`, 11 colunas.
+2. **Código:** commits `67a48e0` (migração 0004 idempotente) e `3ae7869` (esta story) enviados ao `main`.
+3. **Site:** publicado na Vercel a partir de cópia limpa do `3ae7869` (`meet-copilot-p0jlvjn5g`). O log do build lista a rota `/app/ia`.
+4. **Motor:** Deploy no EasyPanel com 0 sessões ativas. `/health` voltou com `uptimeS` de 80 segundos e `GET /experts` devolveu os 8 clones.
+
+**Não verificado em produção:** a tela `/app/ia` com usuário logado (a conta do Sandro ainda está no cadastro inicial e é redirecionada para `/onboarding`), o motor usando a chave de um cliente numa reunião e a troca para o plano B.
 
 ## Limitações conhecidas
 
