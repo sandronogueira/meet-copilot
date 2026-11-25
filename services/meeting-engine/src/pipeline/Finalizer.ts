@@ -62,15 +62,22 @@ export interface FinalizeOutcome<T> {
   result: ModuleOutput<T>
 }
 
-export class Finalizer {
-  constructor(private apiKeys: { anthropic?: string; groq?: string; nvidia?: string }) {}
+export type LlmApiKeys = { anthropic?: string; groq?: string; nvidia?: string }
 
-  async generateReport(config: CopilotLlmConfig, transcript: string): Promise<FinalizeOutcome<Report>> {
+export class Finalizer {
+  /** apiKeys = chaves da plataforma. Cada geração pode receber outras (a chave do cliente). */
+  constructor(private apiKeys: LlmApiKeys) {}
+
+  async generateReport(
+    config: CopilotLlmConfig,
+    transcript: string,
+    apiKeys: LlmApiKeys = this.apiKeys,
+  ): Promise<FinalizeOutcome<Report>> {
     const res = await runLLM({
       config,
       system: REPORT_SYSTEM,
       messages: [{ role: 'user', content: fence(transcript) }],
-      apiKeys: this.apiKeys,
+      apiKeys,
       cacheSystem: false,
     })
     if (!res.ok) return { usage: null, result: res }
@@ -88,12 +95,13 @@ export class Finalizer {
     config: CopilotLlmConfig,
     transcript: string,
     ctx: CopilotContext,
+    apiKeys: LlmApiKeys = this.apiKeys,
   ): Promise<FinalizeOutcome<ProposalContent>> {
     const res = await runLLM({
       config,
       system: proposalSystem(ctx),
       messages: [{ role: 'user', content: fence(transcript) }],
-      apiKeys: this.apiKeys,
+      apiKeys,
       cacheSystem: true,
     })
     if (!res.ok) return { usage: null, result: res }

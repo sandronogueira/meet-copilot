@@ -161,7 +161,16 @@ export class Session {
         salesProfile: null,
         contextText: '',
       }
-      const result = await this.pipeline.run(window, ctx, this.recentSuggestions)
+      // Chave de IA do cliente (própria ou da equipe), se houver. Se a IA recusar
+      // essa chave, ela é marcada como inválida e ESTE tick é refeito com a chave da
+      // plataforma: a reunião do vendedor não pode ficar muda por causa de cobrança.
+      const clientKey = await this.persistence.resolveClientLlmKey(this.claims.workspaceId)
+      let result = await this.pipeline.run(window, ctx, this.recentSuggestions, clientKey?.apiKey)
+      if (clientKey && result.keyRejected) {
+        console.warn(`[session ${this.claims.meetingId}] chave de IA do cliente recusada: ${result.keyRejected}`)
+        await this.persistence.markClientLlmKeyInvalid(clientKey.ownerWorkspaceId, result.keyRejected)
+        result = await this.pipeline.run(window, ctx, this.recentSuggestions)
+      }
       console.log(
         `[session ${this.claims.meetingId}] tick(${reason}): ${result.suggestions.length} sugestão(ões)`,
       )

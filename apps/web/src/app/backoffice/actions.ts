@@ -205,3 +205,78 @@ export async function resetTesterPasswordAction(
   revalidatePath('/backoffice')
   return { password }
 }
+
+const teamKeySchema = z.object({
+  workspaceId: z.string().uuid(),
+  sourceWorkspaceId: z.string().uuid().nullable(),
+})
+
+/**
+ * Liga (ou desliga) um workspace à chave de IA de OUTRO workspace. É assim que os
+ * vendedores de um cliente usam a chave da empresa sem nunca tocar nela.
+ * Só o backoffice faz isso: um usuário comum não consegue apontar a conta dele
+ * para a chave de ninguém (a tabela não tem policy de cliente).
+ */
+export async function setTeamLlmKeyAction(input: z.infer<typeof teamKeySchema>): Promise<ActionResult> {
+  const { userId: actorUserId } = await requireSuperadmin()
+  const parsed = teamKeySchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message }
+  const { workspaceId, sourceWorkspaceId } = parsed.data
+
+  const admin = supabaseAdmin()
+  if (!admin) return { error: 'Supabase admin indisponível (env ausente).' }
+
+  const { data: current } = await admin
+    .from('workspace_llm_keys')
+    .select('key_hint')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle()
+  if (current?.key_hint) {
+    return { error: 'Este usuário tem chave própria. Ele precisa remover a chave antes de entrar numa equipe.' }
+  }
+
+  if (sourceWorkspaceId === null) {
+    const { error } = await admin
+      .from('workspace_llm_keys')
+      .delete()
+      .eq('workspace_id', workspaceId)
+      .not('source_workspace_id', 'is', null)
+    if (error) return { error: error.message }
+  } else {
+    if (sourceWorkspaceId === workspaceId) return { error: 'Uma conta não pode ser a equipe dela mesma.' }
+    const { data: source } = await admin
+      .from('workspace_llm_keys')
+      .select('key_hint')
+      .eq('workspace_id', sourceWorkspaceId)
+      .maybeSingle()
+    if (!source?.key_hint) return { error: 'A conta escolhida não tem chave de IA própria.' }
+
+    const { error } = await admin.from('workspace_llm_keys').upsert(
+      {
+        workspace_id: workspaceId,
+        provider: 'anthropic',
+        key_ciphertext: null,
+        key_hint: null,
+        source_workspace_id: sourceWorkspaceId,
+        status: 'active',
+        last_error: null,
+        created_by: actorUserId,
+      },
+      { onConflict: 'workspace_id' },
+    )
+    if (error) return { error: error.message }
+  }
+
+  await logAudit(admin, {
+    workspace_id: workspaceId,
+    actor_user_id: actorUserId,
+    actor_type: 'user',
+    action: sourceWorkspaceId ? 'backoffice.llm_team_link' : 'backoffice.llm_team_unlink',
+    target_type: 'workspace',
+    target_id: workspaceId,
+    meta: { source_workspace_id: sourceWorkspaceId },
+  })
+
+  revalidatePath('/backoffice')
+  return {}
+}

@@ -6,6 +6,7 @@ import {
 import { Anthropic, MODELS, extractJson, type AnthropicUsage } from '../lib/anthropic'
 import type { CopilotContext } from '../lib/persistence'
 import { REGRA_SEM_TRAVESSAO, semTravessaoEmTudo } from '../lib/sem-travessao'
+import { keyRejectionReason } from '../lib/client-llm-key'
 
 /**
  * Cérebro do copiloto (F3). Duas camadas de modelo:
@@ -18,6 +19,8 @@ import { REGRA_SEM_TRAVESSAO, semTravessaoEmTudo } from '../lib/sem-travessao'
 export interface PipelineResult {
   suggestions: GeneratedSuggestion[]
   usage: { model: string; tokensIn: number; tokensOut: number }
+  /** Preenchido quando a IA recusou a chave do CLIENTE: quem chamou refaz com a da plataforma. */
+  keyRejected?: string
 }
 
 const ROUTER_SYSTEM = `Você é um roteador barato de um copiloto de reuniões (vendas OU trabalho).
@@ -58,11 +61,18 @@ export class CopilotPipeline {
   }
 
   /** Roda o tick completo. Retorna [] se o router decidir que não vale. */
-  async run(window: string, ctx: CopilotContext, recentSuggestions: string[]): Promise<PipelineResult> {
+  async run(
+    window: string,
+    ctx: CopilotContext,
+    recentSuggestions: string[],
+    clientApiKey?: string,
+  ): Promise<PipelineResult> {
     const empty: PipelineResult = { suggestions: [], usage: { model: MODELS.router, tokensIn: 0, tokensOut: 0 } }
+    // chave do cliente, quando houver; senão a da plataforma (a do construtor)
+    const anthropic = clientApiKey ? new Anthropic(clientApiKey) : this.anthropic
 
     // 1) Router (Haiku)
-    const routerRes = await this.anthropic.complete({
+    const routerRes = await anthropic.complete({
       model: MODELS.router,
       system: [{ type: 'text', text: ROUTER_SYSTEM }],
       userText: fence(window),
@@ -71,7 +81,7 @@ export class CopilotPipeline {
     })
     if (!routerRes.ok) {
       console.error('[pipeline] router falhou:', routerRes.error)
-      return empty
+      return clientApiKey ? { ...empty, keyRejected: keyRejectionReason(routerRes.error) ?? undefined } : empty
     }
     const routed = routerOutputSchema.safeParse(extractJson(routerRes.data.text))
     if (!routed.success) {
@@ -96,7 +106,7 @@ export class CopilotPipeline {
       recentSuggestions.length > 0
         ? `\n\nSugestões já dadas (NÃO repita tema):\n- ${recentSuggestions.slice(-6).join('\n- ')}`
         : ''
-    const genRes = await this.anthropic.complete({
+    const genRes = await anthropic.complete({
       model: MODELS.generator,
       system: [{ type: 'text', text: generatorSystem(ctx), cache_control: { type: 'ephemeral' } }],
       userText: fence(window) + antiRepeat,
@@ -105,7 +115,11 @@ export class CopilotPipeline {
     })
     if (!genRes.ok) {
       console.error('[pipeline] gerador falhou:', genRes.error)
-      return { suggestions: [], usage: usageOf(MODELS.router, routerRes.data.usage) }
+      return {
+        suggestions: [],
+        usage: usageOf(MODELS.router, routerRes.data.usage),
+        keyRejected: clientApiKey ? (keyRejectionReason(genRes.error) ?? undefined) : undefined,
+      }
     }
 
     // Validação POR ITEM: um item ruim (ou truncado) não derruba os demais.

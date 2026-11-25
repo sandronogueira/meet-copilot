@@ -1,7 +1,13 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { createTesterAction, inviteTesterAction, setUserBanAction, resetTesterPasswordAction } from './actions'
+import {
+  createTesterAction,
+  inviteTesterAction,
+  setUserBanAction,
+  resetTesterPasswordAction,
+  setTeamLlmKeyAction,
+} from './actions'
 
 export interface PlatformStats {
   users: number
@@ -35,9 +41,18 @@ export interface UserOverviewRow {
   last_activity: string | null
 }
 
+/** Chave de IA de um workspace, sem a chave: própria (key_hint) ou vínculo com uma equipe. */
+export interface LlmKeyRow {
+  workspace_id: string
+  key_hint: string | null
+  source_workspace_id: string | null
+  status: string
+}
+
 interface Props {
   stats: PlatformStats
   users: UserOverviewRow[]
+  llmKeys: LlmKeyRow[]
 }
 
 /** Custo estimado (D3) — pricing de referência US$3/1M tokens in, US$15/1M tokens out. Não é billing real. */
@@ -62,7 +77,7 @@ function isBanned(bannedUntil: string | null): boolean {
   return new Date(bannedUntil).getTime() > Date.now()
 }
 
-export function BackofficeView({ stats, users }: Props) {
+export function BackofficeView({ stats, users, llmKeys }: Props) {
   const [pending, startTransition] = useTransition()
   const [pendingUserId, setPendingUserId] = useState<string | null>(null)
 
@@ -82,6 +97,20 @@ export function BackofficeView({ stats, users }: Props) {
   const [rowError, setRowError] = useState<string | null>(null)
 
   const platformCost = estimatedCostUsd(stats.tokens_in, stats.tokens_out)
+
+  // IA por conta: quem tem chave própria pode servir de "equipe" para os demais
+  const keyByWorkspace = new Map(llmKeys.map((k) => [k.workspace_id, k]))
+  const teamOptions = users.filter((u) => keyByWorkspace.get(u.workspace_id)?.key_hint)
+
+  function setTeamKey(user: UserOverviewRow, sourceWorkspaceId: string | null) {
+    setRowError(null)
+    setPendingUserId(user.owner_user_id)
+    startTransition(async () => {
+      const r = await setTeamLlmKeyAction({ workspaceId: user.workspace_id, sourceWorkspaceId })
+      if (r.error) setRowError(r.error)
+      setPendingUserId(null)
+    })
+  }
 
   function submitCreateTester() {
     setFormError(null)
@@ -264,6 +293,7 @@ export function BackofficeView({ stats, users }: Props) {
               <th className="py-3 pr-4">Usuário</th>
               <th className="py-3 pr-4">Workspace</th>
               <th className="py-3 pr-4">Status</th>
+              <th className="py-3 pr-4">IA</th>
               <th className="py-3 pr-4">Reuniões</th>
               <th className="py-3 pr-4">Minutos</th>
               <th className="py-3 pr-4">Tokens</th>
@@ -295,6 +325,41 @@ export function BackofficeView({ stats, users }: Props) {
                     >
                       {banned ? 'Bloqueado' : 'Ativo'}
                     </span>
+                  </td>
+                  <td className="py-3 pr-4">
+                    {(() => {
+                      const key = keyByWorkspace.get(u.workspace_id)
+                      // chave própria: quem troca é o dono, na tela "IA do copiloto"
+                      if (key?.key_hint) {
+                        return (
+                          <span
+                            className={`text-xs ${key.status === 'active' ? 'text-primary-fixed' : 'text-error'}`}
+                            title="Chave própria do cliente"
+                          >
+                            Própria ••••{key.key_hint}
+                            {key.status === 'active' ? '' : ' (com problema)'}
+                          </span>
+                        )
+                      }
+                      return (
+                        <select
+                          value={key?.source_workspace_id ?? ''}
+                          disabled={rowPending}
+                          onChange={(e) => setTeamKey(u, e.target.value || null)}
+                          title="De quem é a chave de IA usada por esta conta"
+                          className="bg-surface-container-high border border-white/10 rounded-md px-2 py-1 text-[12px] text-on-surface max-w-[180px]"
+                        >
+                          <option value="">IA padrão</option>
+                          {teamOptions
+                            .filter((o) => o.workspace_id !== u.workspace_id)
+                            .map((o) => (
+                              <option key={o.workspace_id} value={o.workspace_id}>
+                                Equipe: {o.workspace_name}
+                              </option>
+                            ))}
+                        </select>
+                      )
+                    })()}
                   </td>
                   <td className="py-3 pr-4 text-on-surface-variant">{numberFmt.format(u.meetings)}</td>
                   <td className="py-3 pr-4 text-on-surface-variant">{numberFmt.format(u.talk_minutes)}</td>

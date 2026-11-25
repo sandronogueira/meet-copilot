@@ -1,6 +1,6 @@
 import { requireSuperadmin } from '@/lib/superadmin'
 import { supabaseAdmin } from '@/lib/supabase/admin'
-import { BackofficeView, type PlatformStats, type UserOverviewRow } from './backoffice-view'
+import { BackofficeView, type LlmKeyRow, type PlatformStats, type UserOverviewRow } from './backoffice-view'
 
 export default async function BackofficePage() {
   await requireSuperadmin()
@@ -14,9 +14,12 @@ export default async function BackofficePage() {
     )
   }
 
-  const [statsRes, overviewRes] = await Promise.all([
+  const [statsRes, overviewRes, keysRes] = await Promise.all([
     admin.rpc('backoffice_platform_stats').single(),
     admin.rpc('backoffice_overview'),
+    // chaves de IA dos clientes: só metadados (o texto cifrado nunca sai do servidor).
+    // Se a tabela ainda não existir, a coluna "IA" aparece vazia em vez de quebrar a página.
+    admin.from('workspace_llm_keys').select('workspace_id, key_hint, source_workspace_id, status'),
   ])
 
   if (statsRes.error) {
@@ -30,6 +33,7 @@ export default async function BackofficePage() {
     <BackofficeView
       stats={statsRes.data as PlatformStats}
       users={(overviewRes.data ?? []) as UserOverviewRow[]}
+      llmKeys={(keysRes.data ?? []) as LlmKeyRow[]}
     />
   )
 }

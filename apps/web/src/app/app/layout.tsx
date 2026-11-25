@@ -48,6 +48,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <a href="/app/experts" style={{ color: 'var(--fg-dim)' }}>
             Especialistas
           </a>
+          <a href="/app/ia" style={{ color: 'var(--fg-dim)' }}>
+            IA do copiloto
+          </a>
           <a href="/app/profile" style={{ color: 'var(--fg-dim)' }}>
             Perfil
           </a>

@@ -7,17 +7,22 @@ import { SessionManager, type SessionClaims } from './session/SessionManager'
 import { GroqWhisperProvider } from './stt/GroqWhisperProvider'
 import type { STTProvider } from './stt/STTProvider'
 import { CopilotPipeline } from './pipeline/CopilotPipeline'
-import { Finalizer } from './pipeline/Finalizer'
+import { Finalizer, type FinalizeOutcome, type LlmApiKeys } from './pipeline/Finalizer'
 import { defaultLlmConfig } from './lib/llm-defaults'
+import { keyRejectionReason } from './lib/client-llm-key'
 
 const config = loadConfig()
 const persistence = new Persistence(config)
 
 const pipeline = config.ANTHROPIC_API_KEY ? new CopilotPipeline(config.ANTHROPIC_API_KEY) : null
 if (!pipeline) console.warn('[config] ANTHROPIC_API_KEY ausente: copiloto (sugestões) desativado')
-const finalizer = config.ANTHROPIC_API_KEY
-  ? new Finalizer({ anthropic: config.ANTHROPIC_API_KEY, groq: config.GROQ_API_KEY, nvidia: config.NVIDIA_API_KEY })
-  : null
+/** Chaves de IA da PLATAFORMA. A chave do cliente, quando existe, substitui só a da Anthropic. */
+const platformLlmKeys: LlmApiKeys = {
+  anthropic: config.ANTHROPIC_API_KEY,
+  groq: config.GROQ_API_KEY,
+  nvidia: config.NVIDIA_API_KEY,
+}
+const finalizer = config.ANTHROPIC_API_KEY ? new Finalizer(platformLlmKeys) : null
 
 // Alucinações clássicas do Whisper em áudio silencioso (pt) — descartadas.
 const WHISPER_HALLUCINATIONS =
@@ -127,6 +132,28 @@ async function handleIngest(req: IncomingMessage, res: ServerResponse): Promise<
 }
 
 /**
+ * Roda uma geração pós-reunião com a chave de IA do CLIENTE, quando houver.
+ * Se a IA recusar essa chave (inválida ou sem crédito), ela é marcada como
+ * inválida e a geração é refeita com a chave da plataforma: o usuário recebe o
+ * entregável e o dono da chave é avisado na tela "IA do copiloto".
+ */
+async function withClientLlmKey<T>(
+  workspaceId: string,
+  run: (keys: LlmApiKeys) => Promise<FinalizeOutcome<T>>,
+): Promise<{ outcome: FinalizeOutcome<T>; keySource: 'workspace' | 'platform' }> {
+  const client = await persistence.resolveClientLlmKey(workspaceId)
+  if (!client) return { outcome: await run(platformLlmKeys), keySource: 'platform' }
+
+  const first = await run({ ...platformLlmKeys, anthropic: client.apiKey })
+  const rejected = first.result.ok ? null : keyRejectionReason(first.result.error)
+  if (!rejected) return { outcome: first, keySource: 'workspace' }
+
+  console.warn(`[finalize] chave de IA do cliente recusada (workspace ${workspaceId}): ${rejected}`)
+  await persistence.markClientLlmKeyInvalid(client.ownerWorkspaceId, rejected)
+  return { outcome: await run(platformLlmKeys), keySource: 'platform' }
+}
+
+/**
  * POST /report | /proposal ?token=<JWT meetingId+workspaceId>
  * Fecha a reunião: gera o entregável a partir da transcrição persistida,
  * grava no banco e transmite ao painel (broadcast 'report' | 'proposal').
@@ -164,11 +191,25 @@ async function handleFinalize(
     (await persistence.loadLlmConfig(claims.workspaceId, 'post_call')) ??
     defaultLlmConfig(claims.workspaceId, 'post_call')
 
+  // cópia local: mantém o tipo não nulo dentro das funções passadas adiante
+  const fin = finalizer
+  // a chave do cliente só entra em jogo quando o provedor da fase é a Anthropic
+  const paidBy = (source: 'workspace' | 'platform') => (cfg.provider === 'anthropic' ? source : 'platform')
+
   if (kind === 'report') {
-    const report = await finalizer.generateReport(cfg, transcript)
+    const { outcome: report, keySource } = await withClientLlmKey(claims.workspaceId, (keys) =>
+      fin.generateReport(cfg, transcript, keys),
+    )
     // Custo já gasto: registra o usage mesmo que o parsing do output falhe adiante.
     if (report.usage) {
-      void persistence.recordLlmUsage(claims.workspaceId, claims.meetingId, 'post_call', cfg.provider, report.usage)
+      void persistence.recordLlmUsage(
+        claims.workspaceId,
+        claims.meetingId,
+        'post_call',
+        cfg.provider,
+        report.usage,
+        paidBy(keySource),
+      )
     }
     if (!report.result.ok) {
       json(res, 502, report.result)
@@ -182,9 +223,18 @@ async function handleFinalize(
 
   // proposal
   const ctx = await persistence.loadContext(claims.workspaceId, claims.meetingId)
-  const proposal = await finalizer.generateProposal(cfg, transcript, ctx)
+  const { outcome: proposal, keySource: proposalKeySource } = await withClientLlmKey(claims.workspaceId, (keys) =>
+    fin.generateProposal(cfg, transcript, ctx, keys),
+  )
   if (proposal.usage) {
-    void persistence.recordLlmUsage(claims.workspaceId, claims.meetingId, 'post_call', cfg.provider, proposal.usage)
+    void persistence.recordLlmUsage(
+      claims.workspaceId,
+      claims.meetingId,
+      'post_call',
+      cfg.provider,
+      proposal.usage,
+      paidBy(proposalKeySource),
+    )
   }
   if (!proposal.result.ok) {
     json(res, 502, proposal.result)

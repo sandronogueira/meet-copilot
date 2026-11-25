@@ -15,6 +15,7 @@ import {
 import type { EngineConfig } from '../config'
 import type { BufferedSegment } from '../session/TranscriptBuffer'
 import { estimateCents } from './llm-router'
+import { decryptLlmKey } from './llm-key-crypto'
 
 /** Contexto do copiloto para uma reunião (o QUE o agente sabe + COMO pensa). */
 export interface CopilotContext {
@@ -35,6 +36,12 @@ export interface ExpertSummary {
   category: string | null
 }
 
+/** Chave de IA do CLIENTE já aberta, e de qual workspace ela é (o próprio ou o da equipe). */
+export interface ClientLlmKey {
+  apiKey: string
+  ownerWorkspaceId: string
+}
+
 /**
  * Persistência + tempo real do caminho quente.
  * - INSERTs usam service_role (quando configurado), escopados por parâmetros explícitos.
@@ -45,8 +52,13 @@ export class Persistence {
   private db: SupabaseClient | null
   private rt: SupabaseClient | null
   private channels = new Map<string, RealtimeChannel>()
+  /** Segredo de onde sai a chave que abre as chaves de IA dos clientes (ver llm-key-crypto). */
+  private readonly keySecret: string
+  /** Cache curto por workspace: evita uma consulta ao banco a cada tick ao vivo. */
+  private clientKeyCache = new Map<string, { value: ClientLlmKey | null; expires: number }>()
 
   constructor(cfg: EngineConfig) {
+    this.keySecret = cfg.ENGINE_WS_SECRET
     this.db =
       cfg.SUPABASE_URL && cfg.SUPABASE_SERVICE_ROLE_KEY
         ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_SERVICE_ROLE_KEY, {
@@ -388,6 +400,7 @@ export class Persistence {
     phase: LlmPhase,
     provider: LlmProvider,
     usage: LlmUsageByRole[],
+    keySource: 'workspace' | 'platform' = 'platform',
   ): Promise<void> {
     if (!this.db) {
       console.log(`[log-only] llm_usage ${workspaceId} ${meetingId ?? '-'} ${phase}/${provider}:`, usage)
@@ -408,6 +421,8 @@ export class Persistence {
           provider,
           tokens_in: u.tokensIn,
           tokens_out: u.tokensOut,
+          // quem pagou esta chamada: a chave do cliente ou a da plataforma
+          key_source: keySource,
         },
       }))
       const { error } = await this.db.from('usage_events').insert(rows)
@@ -455,6 +470,62 @@ export class Persistence {
       return null
     }
     return parsed.data
+  }
+
+  /**
+   * Chave de IA do CLIENTE para este workspace: a própria, ou a da equipe a que
+   * ele foi ligado no backoffice. null = usar a chave da plataforma.
+   * Fail-soft: qualquer problema (tabela ausente, texto que não abre) vira null.
+   */
+  async resolveClientLlmKey(workspaceId: string): Promise<ClientLlmKey | null> {
+    if (!this.db) return null
+    const cached = this.clientKeyCache.get(workspaceId)
+    if (cached && cached.expires > Date.now()) return cached.value
+    const value = await this.loadClientLlmKey(workspaceId)
+    this.clientKeyCache.set(workspaceId, { value, expires: Date.now() + 60_000 })
+    return value
+  }
+
+  private async loadClientLlmKey(workspaceId: string): Promise<ClientLlmKey | null> {
+    const own = await this.readLlmKeyRow(workspaceId)
+    if (!own) return null
+    // ligado à chave de uma equipe: vale a linha do dono (um salto só, sem cadeia)
+    const ownerId = own.source_workspace_id ?? workspaceId
+    const row = own.source_workspace_id ? await this.readLlmKeyRow(ownerId) : own
+    if (!row?.key_ciphertext || row.status !== 'active') return null
+    const apiKey = decryptLlmKey(row.key_ciphertext, ownerId, this.keySecret)
+    if (!apiKey) {
+      console.warn(`[persistence] a chave de IA do workspace ${ownerId} não abriu (segredo trocado?)`)
+      return null
+    }
+    return { apiKey, ownerWorkspaceId: ownerId }
+  }
+
+  private async readLlmKeyRow(
+    workspaceId: string,
+  ): Promise<{ key_ciphertext: string | null; source_workspace_id: string | null; status: string } | null> {
+    if (!this.db) return null
+    const { data, error } = await this.db
+      .from('workspace_llm_keys')
+      .select('key_ciphertext, source_workspace_id, status')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle()
+    if (error) {
+      console.warn('[persistence] workspace_llm_keys:', error.message)
+      return null
+    }
+    return data
+  }
+
+  /** A IA recusou a chave do cliente: marca como inválida (a tela avisa o dono) e para de usá-la. */
+  async markClientLlmKeyInvalid(ownerWorkspaceId: string, reason: string): Promise<void> {
+    this.clientKeyCache.clear()
+    if (!this.db) return
+    const { error } = await this.db
+      .from('workspace_llm_keys')
+      .update({ status: 'invalid', last_error: reason })
+      .eq('workspace_id', ownerWorkspaceId)
+    if (error) console.error('[persistence] markClientLlmKeyInvalid falhou:', error.message)
   }
 
   closeChannel(meetingId: string): void {
