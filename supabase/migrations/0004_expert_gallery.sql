@@ -4,7 +4,7 @@
 
 alter table sales_experts
   add column category text,          -- Renomado | Alta Performance | Institucional | Técnico | Metodologia | Seu Modelo
-  add column avatar_url text,
+  add column if not exists avatar_url text,  -- já criada em 0002; idempotente para banco novo
   add column interruption text default 'moderado'  -- discreto | moderado | ativo
     check (interruption in ('discreto','moderado','ativo'));
 
