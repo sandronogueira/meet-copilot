@@ -1,6 +1,6 @@
 # Meet Copilot na Chrome Web Store (item não listado)
 
-**Situação em 2026-11-26:** pacote 0.3.0 pronto e testado, já com o aviso de privacidade e o aceite. A política de privacidade está escrita, completa (responsável e contato informados pelo Sandro) e aprovada por ele em 2026-11-26, mas ainda não foi publicada. Nada foi enviado à loja, nenhuma conta foi criada, nada foi pago, e não houve commit nem deploy.
+**Situação em 2026-11-26:** pacote 0.3.0 pronto e testado, já com o aviso de privacidade e o aceite. A política de privacidade está no ar em https://meet.2020agency.co/privacidade desde 2026-11-26, aprovada pelo Sandro. Nada foi enviado à loja, nenhuma conta foi criada e nada foi pago.
 **Objetivo:** o vendedor recebe um link, clica em "Usar no Chrome" e a extensão está instalada, sem "Modo do desenvolvedor".
 **Stories:** `docs/stories/loja-chrome.story.md` (pacote e ficha) e `docs/stories/loja-chrome-privacidade.story.md` (política e aviso)
 
@@ -16,7 +16,7 @@
 | 2 | Ligar a verificação em duas etapas nessa conta | O Google exige antes de publicar |
 | 3 | Entrar em https://chrome.google.com/webstore/devconsole, aceitar o contrato e pagar a taxa de cadastro | Taxa única, paga uma vez só. O valor conhecido é 5 dólares (ver seção 7) |
 | 4 | Informar o nome do publicador e confirmar o e-mail de contato | O Google manda um e-mail de confirmação. Esse e-mail aparece para quem instala |
-| 5 | Aprovar o texto da política de privacidade e pedir a publicação do site | **Aprovado em 2026-11-26.** O nome do responsável (Agência 2020), o e-mail de contato e a data da aprovação estão em `apps/web/src/lib/privacy.ts`. O e-mail aparece na página e serve também de suporte. Falta pedir a publicação do site |
+| 5 | Aprovar o texto da política de privacidade e pedir a publicação do site | **Feito em 2026-11-26.** O texto foi aprovado e o site foi publicado com a política. O nome do responsável (Agência 2020), o e-mail de contato e a data da aprovação estão em `apps/web/src/lib/privacy.ts`. O e-mail aparece na página e serve também de suporte |
 | 6 | Criar no site uma conta de teste com e-mail e senha, já com o cadastro inicial concluído | É para o revisor do Google conseguir usar. A senha quem digita no painel é você |
 | 7 | Enviar o pacote e preencher a ficha | Arquivo: `dist/chrome-web-store/meet-copilot-loja-0.3.0.zip`. Os textos estão prontos nas seções 4, 5 e 6 |
 | 8 | Marcar as três declarações sobre uso de dados | São declarações suas ao Google (seção 5.5) |
@@ -26,7 +26,7 @@
 
 Posso preencher os campos da ficha junto com você, com a tela aberta. Criar a conta, aceitar o contrato, pagar, digitar senhas e clicar em enviar ficam com você.
 
-**Antes do passo 7**, duas coisas precisam estar resolvidas (detalhes na seção 8): a página de política de privacidade publicada no site e um teste de reunião real com o pacote da loja. O aviso com aceite dentro da extensão já está pronto.
+**Antes do passo 7** falta uma coisa (detalhes na seção 8): um teste de reunião real com o pacote da loja. A política de privacidade já está no ar e o aviso com aceite dentro da extensão já está pronto.
 
 ---
 
@@ -118,7 +118,7 @@ Em 2026-11-26, com o zip 0.3.0 extraído numa pasta nova, 28 conferências do av
 | Idioma | Português (Brasil) |
 | Site (Homepage URL) | https://meet.2020agency.co |
 | URL de suporte | A definir pelo Sandro (campo opcional) |
-| Política de privacidade | https://meet.2020agency.co/privacidade (só responde depois da publicação, ver seção 8) |
+| Política de privacidade | https://meet.2020agency.co/privacidade (no ar desde 2026-11-26) |
 | Ícone da loja | Já vai dentro do pacote (128 px) |
 | Capturas de tela | `docs/loja-chrome/captura-1-painel.png`, `captura-3-aviso.png` e `captura-2-microfone.png`, nessa ordem (1280x800) |
 | Imagens promocionais e vídeo | Opcionais. Não feitos |
@@ -283,7 +283,7 @@ Campo obrigatório para o Meet Copilot, porque a extensão lida com dados do usu
 
 Endereço a informar no painel: `https://meet.2020agency.co/privacidade`
 
-A página foi escrita em 2026-11-26 (`apps/web/src/app/privacidade/page.tsx`), com a declaração de Uso Limitado e um resumo em inglês para o revisor. **Ela ainda não está no ar**: falta só o deploy do site (seção 8). O Sandro informou o nome do responsável e o e-mail de contato e aprovou o texto em 2026-11-26; os três estão em `apps/web/src/lib/privacy.ts` (a aprovação, no campo `approvedOn`). No build de produção a página abre completa e os links aparecem. Confira o endereço no navegador antes de enviar a ficha.
+A página foi escrita em 2026-11-26 (`apps/web/src/app/privacidade/page.tsx`), com a declaração de Uso Limitado e um resumo em inglês para o revisor. **Ela está no ar desde 2026-11-26**, publicada com o "Sim, publicar" do Sandro. Ele informou o nome do responsável e o e-mail de contato e aprovou o texto no mesmo dia; os três estão em `apps/web/src/lib/privacy.ts` (a aprovação, no campo `approvedOn`). Confira o endereço no navegador antes de enviar a ficha.
 
 O que a política diz, em resumo, sempre conforme o código de hoje:
 
@@ -347,8 +347,8 @@ The extension captures audio only between Start and End. The interface is in Bra
 | Marcas do Google | Não usar marca do Google como nome. Ao citar um produto do Google, dar o crédito da marca | Crédito incluído na descrição. Ver risco na seção 9 |
 | Permissões mínimas | Pedir só o necessário. Pedir a mais pode causar recusa | Cumprido no pacote da loja (sem localhost e sem `tabs`) |
 | Justificativa de permissões, finalidade única e código remoto | Campos da aba de privacidade | Textos prontos na seção 5 |
-| Política de privacidade | Obrigatória para quem lida com dados do usuário. Link informado no painel. Precisa dizer o que coleta, como usa e com quem compartilha | **Escrita, completa e aprovada pelo Sandro em 2026-11-26. Ainda não publicada.** Falta o deploy do site |
-| Declaração de Uso Limitado | Frase afirmando que o uso dos dados segue a regra de Uso Limitado, em uma página do site da extensão, com link a partir da página inicial | **Escrita, ainda não publicada.** Está na política, em português e em inglês, e a página inicial ganhou o link. Vai ao ar junto com a política |
+| Política de privacidade | Obrigatória para quem lida com dados do usuário. Link informado no painel. Precisa dizer o que coleta, como usa e com quem compartilha | **Cumprido.** No ar desde 2026-11-26, aprovada pelo Sandro |
+| Declaração de Uso Limitado | Frase afirmando que o uso dos dados segue a regra de Uso Limitado, em uma página do site da extensão, com link a partir da página inicial | **Cumprido.** Está na política, em português e em inglês, e a página inicial tem o link. No ar desde 2026-11-26 |
 | Aviso destacado e consentimento | Mostrar quais dados são coletados e para quê, e obter o aceite informado do usuário. Se a prática mudar depois da instalação, avisar de novo | **Cumprido no pacote 0.3.0.** O aviso aparece antes de qualquer envio, e a descrição da ficha repete o que é coletado |
 | Transmissão segura | Dados do usuário só por conexão criptografada | Cumprido (tudo por HTTPS) |
 | Regra própria para gravação de áudio ou de reunião | Não existe. Valem as regras gerais de dados acima | Sem ação |
@@ -361,13 +361,13 @@ The extension captures audio only between Start and End. The interface is in Bra
 
 ## 8. O que ainda falta para poder enviar
 
-Resolvido em 2026-11-26: a política de privacidade foi escrita, a declaração de Uso Limitado está nela, a página inicial ganhou o link e a extensão ganhou o aviso com aceite.
+Resolvido em 2026-11-26: a política de privacidade foi escrita, a declaração de Uso Limitado está nela, a página inicial ganhou o link e a extensão ganhou o aviso com aceite. No mesmo dia o Sandro aprovou o texto e o site foi publicado.
 
 | # | Pendência | Quem resolve | Obrigatório? |
 |---|-----------|--------------|--------------|
 | 1 | **Dados para a política. Resolvido em 2026-11-26:** o Sandro informou o nome do responsável (Agência 2020) e o e-mail de contato, e os dois estão em `apps/web/src/lib/privacy.ts`. Com os dois preenchidos, o build de produção gerou `/privacidade` completa e com os links na página inicial, no login e no cadastro (conferido em 2026-11-26, antes de a trava de aprovação da pendência 2 entrar) | Feito | Feito |
 | 2 | **Aprovar o texto da política. Resolvido em 2026-11-26:** o Sandro aprovou ("Aprovo") e a data está no campo `approvedOn` de `apps/web/src/lib/privacy.ts`. O texto faz promessas em nome do negócio: não vender dados, não usar para publicidade, ninguém da equipe ler transcrições sem autorização, atender pedidos de exclusão, avisar em caso de incidente. Se o texto mudar de forma relevante, pedir nova aprovação e atualizar as duas datas | Feito | Feito |
-| 3 | **Publicar o site** (commit e deploy), para a política existir no endereço informado à loja | Sandro pede. Desenvolvimento executa | Sim |
+| 3 | **Publicar o site. Resolvido em 2026-11-26:** registros `d0b0892`, `e897b3b` e `cef024c` enviados ao `main` e site publicado na Vercel (`meet-copilot-2y1za6xyo`). Conferido no endereço público: `/privacidade` responde 200 com o nome, o e-mail e a declaração de Uso Limitado, e a página inicial, o login e o cadastro têm o link | Feito | Feito |
 | 4 | **Teste de uma reunião real** com a pasta do pacote da loja: clicar no ícone, aceitar o aviso, iniciar, ver a transcrição chegar e encerrar. O teste automático não cobre o clique no ícone nem a captura de áudio | Sandro, com ajuda, ou uma sessão com o Chrome dele logado | Sim, antes de enviar |
 | 5 | **Prazo de guarda dos dados (decisão).** Conferido em 2026-11-26: o banco tem os campos `workspaces.retention_days` (90) e `meetings.retention_until`, mas nenhuma rotina apaga nada. Por isso a política diz que os dados ficam até o usuário pedir a exclusão. Se o Sandro quiser apagar sozinho depois de um prazo, é preciso criar a rotina e mudar a política | Sandro decide. Não bloqueia o envio | Não |
 | 6 | **Como atender um pedido de exclusão.** Hoje não há botão para apagar uma reunião nem para encerrar a conta: o pedido chega por e-mail e é atendido direto no banco. Bases, documentos, clones e chave de IA o usuário já apaga sozinho | Desenvolvimento, quando chegar o primeiro pedido ou antes | Não para o envio. Sim para cumprir o que a política promete |
@@ -375,7 +375,7 @@ Resolvido em 2026-11-26: a política de privacidade foi escrita, a declaração 
 | 8 | **Captura de tela do painel em uso**, com sugestões aparecendo numa reunião de teste | Desenvolvimento, numa reunião de teste | Recomendado |
 | 9 | **Zip manual.** Continua na versão 0.2.0, sem o aviso. Decidir se ele é refeito agora ou aposentado quando a loja aprovar | Sandro decide | Não |
 
-Como conferir a pendência 3 depois do deploy: abrir https://meet.2020agency.co/privacidade e ver o link "Política de privacidade" na página inicial.
+Para conferir de novo a qualquer momento: abrir https://meet.2020agency.co/privacidade e ver o link "Política de privacidade" na página inicial.
 
 Se um dia o robô da Recall.ai for ligado (o caminho existe no código, mas está inativo), a política precisa incluir a Recall.ai na lista de serviços.
 
@@ -387,7 +387,7 @@ Se um dia o robô da Recall.ai for ligado (o caminho existe no código, mas est�
 |-------|--------|-------------|
 | Análise demorada. Conta nova, extensão nova e captura de áudio de aba entram em análise mais longa | Alta | Enviar com antecedência. Passando de três semanas, a documentação manda abrir chamado no suporte |
 | Recusa por aviso ou política insuficientes | Baixa | O aviso com aceite está no pacote 0.3.0 e a política cobre o que a regra pede. Se o revisor questionar, o texto de resposta está na seção 5.7 |
-| Enviar a ficha com o link da política ainda fora do ar | Média, se a ordem for trocada | Publicar o site antes e abrir o endereço no navegador para conferir |
+| Link da política fora do ar no dia do envio | Baixa | A página está no ar desde 2026-11-26. Abrir o endereço no navegador antes de enviar a ficha, para conferir |
 | Questionamento do nome, por lembrar o Google Meet | Baixa | A descrição já dá o crédito da marca e diz que não há vínculo. Se o Google reclamar, trocar o nome exibido na loja |
 | Endereço do servidor de transcrição é um endereço técnico do EasyPanel | Baixa na análise, mas com efeito depois | Se o servidor mudar de endereço, é preciso nova versão e nova análise, e o Chrome desliga a extensão de cada usuário até ele aceitar a permissão nova. Um endereço próprio (por exemplo `engine.2020agency.co`) evita isso. O ideal é decidir antes do primeiro envio |
 

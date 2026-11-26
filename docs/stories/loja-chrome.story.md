@@ -43,7 +43,7 @@ atrito do produto para esse público. Pela loja, a instalação vira um clique n
 - [x] Gerar o zip e testar a carga num Chromium de teste
 - [x] Capturas de tela 1280x800
 - [x] `docs/LOJA-CHROME.md`
-- [x] Página de política de privacidade e declaração de Uso Limitado no site: escritas em 2026-11-26, ainda não publicadas (`docs/stories/loja-chrome-privacidade.story.md`)
+- [x] Página de política de privacidade e declaração de Uso Limitado no site: escritas, aprovadas pelo Sandro e publicadas em 2026-11-26 (`docs/stories/loja-chrome-privacidade.story.md`)
 - [x] Aviso e aceite dentro da extensão antes da primeira captura: pronto na versão 0.3.0 (mesma story)
 - [ ] Teste de uma reunião real com o pacote da loja
 - [ ] Conta de desenvolvedor, taxa, envio e análise (Sandro)

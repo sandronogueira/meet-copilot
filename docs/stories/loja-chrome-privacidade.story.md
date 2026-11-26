@@ -1,6 +1,6 @@
 # Story: Política de privacidade no site e aviso com aceite na extensão
 
-**Status:** Código pronto e testado em 2026-11-26. Nada commitado, nada publicado, nada enviado à loja. O Sandro informou o nome do responsável (Agência 2020) e o e-mail de contato e aprovou o texto em 2026-11-26. A política está pronta para publicar e vai ao ar quando ele pedir o deploy do site (ver "O que falta").
+**Status:** Site publicado em 2026-11-26, com a política de privacidade no ar. Extensão 0.3.0 pronta e testada, ainda não enviada à loja. Faltam o teste de uma reunião real e a parte do Sandro na loja (ver "O que falta").
 **Origem:** o Sandro respondeu "Sim, preparar" em 2026-11-26 à pergunta "Preparo agora o que falta no site e na extensão para poder enviar à loja?".
 **Executor:** Fable 5.2
 **Story anterior:** `docs/stories/loja-chrome.story.md` (pacote, ficha e lista de requisitos)
@@ -60,7 +60,7 @@ A Chrome Web Store recusa extensão que lida com dados do usuário sem três coi
 - [x] Preencher o nome do responsável ("Agência 2020", informado pelo Sandro em 2026-11-26)
 - [x] Trava de aprovação: campo `approvedOn` e teste
 - [x] Aprovação do texto da política: o Sandro respondeu "Aprovo" em 2026-11-26, data registrada em `approvedOn`
-- [ ] Commit e deploy do site (quando o Sandro pedir)
+- [x] Commit e deploy do site: feitos em 2026-11-26 com o "Sim, publicar" do Sandro (ver "Publicação")
 - [ ] Teste de uma reunião real com o pacote da loja
 
 ## File List
@@ -105,15 +105,26 @@ A Chrome Web Store recusa extensão que lida com dados do usuário sem três coi
 9. Com os dados reais preenchidos (responsável e e-mail informados pelo Sandro): 44 testes e a checagem de tipos passam; o build de produção gera `/privacidade` com status 200, com o nome, o e-mail clicável e a declaração de Uso Limitado, sem aviso de rascunho; a página inicial, o login e o cadastro trazem o link. Conferido também com o site compilado servido localmente (`next start`, porta 3111, já encerrado), em 1280 px e em 390 px, sem erro de script.
 10. Depois disso entrou a trava de aprovação (`approvedOn` vazio): 45 testes passam, a checagem de tipos passa, e o build de produção voltou a gerar `/privacidade` com status 404 e sem links na página inicial, no login e no cadastro. 11. Com a aprovação registrada (`approvedOn: '2026-11-26'`): 45 testes e a checagem de tipos passam, e o build de produção gera `/privacidade` com status 200, com o nome, o e-mail clicável e a declaração de Uso Limitado, sem aviso de rascunho, e com o link na página inicial, no login e no cadastro. É o estado atual.
 
-**Não verificado:** captura de áudio numa reunião real, o clique no ícone abrindo o painel lateral (o teste roda sem janela) e a página no endereço público, que só existe depois do deploy.
+**Não verificado:** captura de áudio numa reunião real e o clique no ícone abrindo o painel lateral (o teste roda sem janela).
 
 **Ambiente:** a prévia embutida do app não abriu o site (o macOS negou o acesso à pasta em Downloads). O site foi conferido com um servidor local temporário na porta 3111, já encerrado.
+
+## Publicação (2026-11-26)
+
+Feita com o "Sim, publicar" do Sandro, depois de ele informar o responsável e o contato e aprovar o texto.
+
+1. **Código:** três registros enviados ao `main`, só com os arquivos deste trabalho: `d0b0892` (extensão), `e897b3b` (site) e `cef024c` (script do pacote da loja, guia, capturas e stories). Os arquivos soltos de outras sessões ficaram de fora.
+2. **Site:** publicado na Vercel a partir de cópia limpa do `cef024c` (`git archive`), deploy `meet-copilot-2y1za6xyo`, apelidado para `meet.2020agency.co`.
+3. **Conferido no endereço público:** `/privacidade` responde 200, com "Agência 2020", o e-mail clicável e a declaração de Uso Limitado em português e em inglês, sem aviso de rascunho e sem travessão. A página inicial, o login e o cadastro têm o link, e o clique na página inicial leva à política. Em 1280 px e em 390 px, sem erro de script e sem rolagem lateral.
+4. **O que já existia continua igual:** `/login` e `/signup` respondem 200, `/app` e `/app/install` redirecionam para o login, a API da extensão responde 401 sem login, e o zip manual no ar é idêntico ao do repositório (versão 0.2.0).
+5. **Motor:** não mudou e não foi republicado.
+6. **Loja:** nada foi enviado.
 
 ## O que falta
 
 1. Resolvido em 2026-11-26: o Sandro informou o nome do responsável e o e-mail de contato, e os dois estão em `apps/web/src/lib/privacy.ts`.
 2. Resolvido em 2026-11-26: o Sandro aprovou o texto e a data está em `approvedOn`.
-3. Commit e deploy do site, quando ele pedir. Depois, conferir `https://meet.2020agency.co/privacidade` no navegador.
+3. Resolvido em 2026-11-26: site publicado e conferido (ver "Publicação").
 4. Teste de uma reunião real com a pasta do pacote da loja.
 5. Decisões que não bloqueiam o envio: apagar dados sozinho depois de um prazo, criar um botão para apagar reunião e encerrar conta, refazer ou aposentar o zip manual.
 
