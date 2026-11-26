@@ -2,6 +2,9 @@
 // Papel: abrir o side panel PELO clique no ícone (gesto que concede activeTab),
 // obter o streamId da aba nesse contexto e ligar o offscreen para capturar.
 
+// Autorização do usuário (mcConsent). Sem ela, nenhuma captura começa.
+importScripts('consent.js')
+
 chrome.runtime.onInstalled.addListener(() => {
   // NÃO abrir o painel automaticamente: precisamos do onClicked para que o
   // Chrome conceda activeTab à aba (sem isso, tabCapture falha com "not invoked").
@@ -36,6 +39,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'START_CAPTURE') {
     ;(async () => {
       try {
+        // O painel já pede o aceite. Esta conferência garante que nenhum outro
+        // caminho inicie a captura sem a autorização registrada.
+        if (!(await mcConsent.read())) {
+          sendResponse({
+            ok: false,
+            code: 'CONSENT_REQUIRED',
+            error: 'Falta aceitar o aviso de privacidade no painel do Meet Copilot.',
+          })
+          return
+        }
+
         // Prioriza a ABA ATUAL (reunião em curso); usa a concedida pelo último
         // clique no ícone como fallback. A autorização do Chrome é POR ABA.
         const { grantedTabId } = await chrome.storage.session.get('grantedTabId')

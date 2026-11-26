@@ -13,6 +13,15 @@ const el = {
   collapseTab: document.getElementById('collapse-tab'),
   login: document.getElementById('btn-login'),
   status: document.getElementById('status'),
+  homeMain: document.getElementById('home-main'),
+  privacy: document.getElementById('btn-privacy'),
+  consent: document.getElementById('consent'),
+  consentMeta: document.getElementById('consent-meta'),
+  consentAccept: document.getElementById('btn-consent-accept'),
+  consentDecline: document.getElementById('btn-consent-decline'),
+  consentBack: document.getElementById('btn-consent-back'),
+  consentRevoke: document.getElementById('btn-consent-revoke'),
+  consentPolicy: document.getElementById('link-privacy-policy'),
   setup: document.getElementById('setup'),
   selBase: document.getElementById('sel-base'),
   selExpert: document.getElementById('sel-expert'),
@@ -37,6 +46,55 @@ let appOrigin = DEFAULT_APP_ORIGIN
 // (sem isso a reunião ficava "in_call" para sempre e vazava memória no engine).
 let activeEngine = null
 
+// ── Aviso de privacidade e autorização (mcConsent vem de consent.js) ─────────
+// A tela inicial só aparece depois do aceite. Antes dele o painel não faz
+// nenhuma chamada de rede, e fechar o painel ou clicar em "Agora não" não
+// registra nada.
+
+function showHome() {
+  el.consent.classList.add('hidden')
+  el.homeMain.classList.remove('hidden')
+}
+
+// consent: a autorização salva (para rever ou retirar) ou null (para pedir o aceite).
+function showConsent(consent) {
+  const granted = Boolean(consent)
+  el.homeMain.classList.add('hidden')
+  el.consent.classList.remove('hidden')
+  el.consentAccept.classList.toggle('hidden', granted)
+  el.consentDecline.classList.toggle('hidden', granted)
+  el.consentBack.classList.toggle('hidden', !granted)
+  el.consentRevoke.classList.toggle('hidden', !granted)
+  el.consentMeta.textContent = granted
+    ? `Você autorizou em ${new Date(consent.acceptedAt).toLocaleDateString('pt-BR')}.`
+    : ''
+  el.home.scrollTop = 0
+}
+
+// Mostra a tela inicial se já houver autorização; senão, o aviso. Devolve a autorização.
+async function showStartScreen() {
+  const consent = await mcConsent.read()
+  if (consent) showHome()
+  else showConsent(null)
+  return consent
+}
+
+el.consentAccept.addEventListener('click', async () => {
+  await mcConsent.grant()
+  showHome()
+  void loadOptions()
+})
+el.consentDecline.addEventListener('click', () => window.close())
+el.consentBack.addEventListener('click', showHome)
+el.consentRevoke.addEventListener('click', async () => {
+  await mcConsent.revoke()
+  showConsent(null)
+})
+el.privacy.addEventListener('click', async () => showConsent(await mcConsent.read()))
+el.consentPolicy.addEventListener('click', () => {
+  chrome.tabs.create({ url: `${appOrigin}/privacidade` })
+})
+
 chrome.storage.local.get('appOrigin').then(async ({ appOrigin: saved }) => {
   if (saved) appOrigin = saved // override p/ dev: chrome.storage.local.set({appOrigin:'http://localhost:3000'})
 
@@ -52,7 +110,7 @@ chrome.storage.local.get('appOrigin').then(async ({ appOrigin: saved }) => {
     showMeetingControls(true)
     return
   }
-  void loadOptions()
+  if (await showStartScreen()) void loadOptions()
 })
 
 // Pré-reunião: bases + clones para escolher o contexto (ou começar no escuro).
@@ -107,6 +165,12 @@ el.login.addEventListener('click', () => {
 })
 
 el.start.addEventListener('click', async () => {
+  // Sem autorização registrada nada é enviado: volta para o aviso.
+  if (!(await mcConsent.read())) {
+    showConsent(null)
+    return
+  }
+
   setStatus('Conectando…')
   el.start.disabled = true
   el.login.classList.add('hidden')
@@ -192,7 +256,11 @@ el.start.addEventListener('click', async () => {
     })
     if (!captura?.ok) {
       const err = String(captura?.error ?? '')
-      if (/invoked|activeTab|cannot be captured|autorizada/i.test(err)) {
+      if (captura?.code === 'CONSENT_REQUIRED') {
+        // o service worker recusou por falta de autorização: pede o aceite de novo
+        setStatus('')
+        showConsent(null)
+      } else if (/invoked|activeTab|cannot be captured|autorizada/i.test(err)) {
         setStatus(
           'Para liberar o áudio: com a aba da chamada do Meet à frente, clique no ÍCONE do Meet Copilot na barra do Chrome (é isso que autoriza a aba) e clique em Iniciar de novo.',
         )
@@ -227,6 +295,7 @@ el.stop.addEventListener('click', async () => {
   el.frame.src = 'about:blank'
   el.frame.style.display = 'none'
   el.home.classList.remove('hidden')
+  await showStartScreen()
   showMeetingControls(false)
   el.start.disabled = false
   setStatus('Copiloto encerrado.')
