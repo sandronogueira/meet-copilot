@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { isPrivacyPolicyReady } from '@/lib/privacy'
 
 export default function Home() {
   return (
@@ -31,6 +32,14 @@ export default function Home() {
             Entrar
           </Link>
         </div>
+        {/* A Chrome Web Store pede o link da política a partir da página inicial. */}
+        {isPrivacyPolicyReady() ? (
+          <p style={{ marginTop: '2.6rem', fontSize: '0.875rem' }}>
+            <Link href="/privacidade" className="muted">
+              Política de privacidade
+            </Link>
+          </p>
+        ) : null}
       </div>
     </main>
   )

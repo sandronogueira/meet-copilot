@@ -4,6 +4,7 @@ import { useActionState } from 'react'
 import Link from 'next/link'
 import { signUpAction, googleAction, type AuthFormState } from '../actions'
 import { GoogleSignInButton } from '../google-signin-button'
+import { isPrivacyPolicyReady } from '@/lib/privacy'
 
 export default function SignupPage() {
   const [state, formAction, pending] = useActionState<AuthFormState, FormData>(signUpAction, {})
@@ -51,6 +52,11 @@ export default function SignupPage() {
       <p className="auth-alt">
         Já tem conta? <Link href="/login">Entrar</Link>
       </p>
+      {isPrivacyPolicyReady() ? (
+        <p className="auth-alt" style={{ marginTop: '0.5rem' }}>
+          <Link href="/privacidade">Política de privacidade</Link>
+        </p>
+      ) : null}
     </div>
   )
 }

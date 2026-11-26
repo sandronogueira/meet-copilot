@@ -746,6 +746,196 @@ textarea.input {
   }
 }
 
+/* --- páginas de texto (política de privacidade) ----------------------------- */
+
+.legal {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 5rem;
+}
+
+.legal .brand-mark {
+  width: fit-content;
+  margin-bottom: 3.5rem;
+  color: var(--fg);
+}
+.legal .brand-mark:hover {
+  text-decoration: none;
+}
+
+.legal h1 {
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  margin: 0.9rem 0 0.8rem;
+}
+
+.legal h2 {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 3rem 0 0.9rem;
+}
+
+.legal h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.4rem;
+}
+
+.legal p,
+.legal li {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--fg-dim);
+}
+
+.legal p + p {
+  margin-top: 0.9rem;
+}
+
+.legal strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.legal .kicker {
+  color: var(--accent);
+}
+
+.legal ul {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+  list-style: none;
+}
+
+.legal li {
+  position: relative;
+  padding-left: 1.25rem;
+}
+.legal li::before {
+  content: '';
+  position: absolute;
+  left: 0.15rem;
+  top: 0.68em;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.legal ul + p {
+  margin-top: 0.9rem;
+}
+
+.legal-summary {
+  margin-top: 2.2rem;
+}
+.legal-summary h2 {
+  margin-top: 0;
+}
+
+.legal-table {
+  margin-top: 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+.legal-table table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+.legal-table th,
+.legal-table td {
+  padding: 0.8rem 0.95rem;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.55;
+  color: var(--fg-dim);
+  border-bottom: 1px solid var(--line);
+}
+.legal-table th {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+.legal-table tr:last-child td {
+  border-bottom: 0;
+}
+.legal-table td:first-child {
+  color: var(--fg);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* No celular a tabela vira uma lista de blocos: cada serviço com seus rótulos. */
+@media (max-width: 640px) {
+  .legal-table table,
+  .legal-table tbody,
+  .legal-table tr,
+  .legal-table td {
+    display: block;
+  }
+  .legal-table table {
+    min-width: 0;
+  }
+  .legal-table thead {
+    display: none;
+  }
+  .legal-table tr {
+    padding: 0.95rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .legal-table tr:last-child {
+    border-bottom: 0;
+  }
+  .legal-table td {
+    padding: 0;
+    border-bottom: 0;
+  }
+  .legal-table td + td {
+    margin-top: 0.65rem;
+  }
+  .legal-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.15rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-faint);
+  }
+}
+
+.legal-draft {
+  margin-bottom: 2.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px dashed var(--warn);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  color: var(--warn);
+}
+
+.legal mark {
+  padding: 0 0.3em;
+  border-radius: 3px;
+  background: rgba(255, 209, 102, 0.16);
+  color: var(--warn);
+}
+
+.legal footer {
+  margin-top: 3.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.875rem;
+}
+
 /* --- animações ------------------------------------------------------------------ */
 
 @keyframes rise {
